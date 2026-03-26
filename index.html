@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>BirdNet Cafe — Banyan Sound Garden</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="stylesheet" href="styles.css" />
+  <!-- p5.js and p5.sound -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.6.0/p5.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.6.0/addons/p5.sound.min.js"></script>
+</head>
+<body>
+  <div id="app">
+    <header>
+      <h1>Banyan Sound Garden</h1>
+      <p class="subtitle">Art + science: import audio & BirdNET results, compose sound-driven visuals on a banyan canvas.</p>
+    </header>
+
+    <main>
+      <section id="canvas-wrap">
+        <!-- p5 canvas will be injected here -->
+        <div id="canvas-container"></div>
+      </section>
+
+      <aside id="controls">
+        <div class="panel">
+          <h3>Audio</h3>
+          <input id="audioFile" type="file" accept="audio/*" />
+          <div class="row">
+            <button id="playBtn">Play</button>
+            <button id="pauseBtn">Pause</button>
+            <button id="stopBtn">Stop</button>
+          </div>
+          <p id="audioStatus">No audio loaded</p>
+        </div>
+
+        <div class="panel">
+          <h3>Data</h3>
+          <label>BirdNET CSV</label>
+          <input id="birdnetFile" type="file" accept=".csv,text/csv" />
+          <label>AFCD CSV (HK list)</label>
+          <input id="afcdFile" type="file" accept=".csv,text/csv" />
+          <p id="dataStatus">No CSV loaded</p>
+        </div>
+
+        <div class="panel">
+          <h3>Layers</h3>
+          <div id="layerList" class="list"></div>
+          <div class="row">
+            <button id="addDemo">Add demo layer</button>
+            <button id="clearLayers">Clear</button>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h3>Tips</h3>
+          <ul>
+            <li>Use 10–30s clips for best visual detail.</li>
+            <li>Click a BirdNET candidate to add its visual layer.</li>
+            <li>Drag layers on the banyan to compose your artwork.</li>
+          </ul>
+        </div>
+      </aside>
+    </main>
+
+    <footer>
+      <small>Prototype — art + citizen science. Data sources: BirdNET outputs and AFCD Hong Kong bird list.</small>
+    </footer>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

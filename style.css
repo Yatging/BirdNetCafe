@@ -1,0 +1,66 @@
+/* styles.css - simple responsive layout */
+:root {
+  --bg: #f6f6f6;
+  --panel: #ffffff;
+  --muted: #666;
+  --accent: #2b7a78;
+}
+
+* { box-sizing: border-box; font-family: "Inter", "Helvetica Neue", Arial, sans-serif; }
+body { margin: 0; background: var(--bg); color: #222; }
+#app { display: flex; flex-direction: column; min-height: 100vh; }
+
+header {
+  background: var(--panel);
+  border-bottom: 1px solid #e6e6e6;
+  padding: 12px 18px;
+}
+header h1 { margin: 0; font-size: 20px; }
+.subtitle { margin: 6px 0 0; color: var(--muted); font-size: 13px; }
+
+main { display: flex; gap: 12px; padding: 12px; flex: 1; }
+#canvas-wrap { flex: 1; display:flex; align-items:center; justify-content:center; }
+#canvas-container {
+  width: 100%;
+  height: calc(100vh - 180px);
+  background: #fff;
+  border: 1px solid #ddd;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  position: relative;
+  overflow: hidden;
+}
+
+aside#controls {
+  width: 340px;
+  background: var(--panel);
+  border: 1px solid #ddd;
+  padding: 12px;
+  overflow-y: auto;
+  max-height: calc(100vh - 80px);
+}
+
+.panel { margin-bottom: 12px; }
+.panel h3 { margin: 0 0 8px 0; font-size: 14px; }
+.row { display:flex; gap:8px; margin-top:8px; }
+button {
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  background: #fff;
+  cursor: pointer;
+}
+button:hover { background: #f0f0f0; }
+input[type=file] { width: 100%; margin-top:6px; }
+
+.list { border: 1px dashed #eee; padding: 6px; background: #fafafa; max-height: 220px; overflow:auto; }
+.layer-item { display:flex; justify-content:space-between; align-items:center; padding:6px; border-bottom:1px solid #eee; font-size:13px; }
+.layer-item:last-child { border-bottom: none; }
+
+footer { padding: 8px 12px; text-align:center; font-size:12px; color:var(--muted); border-top: 1px solid #eee; background: #fff; }
+@media (max-width: 900px) {
+  aside#controls { width: 100%; order: 2; max-height: 220px; }
+  main { flex-direction: column; }
+  #canvas-container { height: 60vh; }
+}
