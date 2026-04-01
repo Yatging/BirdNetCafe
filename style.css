@@ -1,4 +1,4 @@
-/* style.css - layout & basic styles (ensure filename is exactly style.css) */
+/* style.css - layout & styles (filename must be style.css) */
 :root {
   --bg: #f6f6f6;
   --panel: #ffffff;
@@ -23,7 +23,7 @@ main { display: flex; gap: 12px; padding: 12px; flex: 1; }
 #canvas-container {
   width: 100%;
   height: calc(100vh - 180px);
-  background: #fff;
+  background: linear-gradient(180deg, #eaf6ff 0%, #f6fbf8 100%);
   border: 1px solid #ddd;
   display:flex;
   align-items:center;
@@ -59,6 +59,36 @@ input[type=file] { width: 100%; margin-top:6px; }
 .layer-item:last-child { border-bottom: none; }
 
 footer { padding: 8px 12px; text-align:center; font-size:12px; color:var(--muted); border-top: 1px solid #eee; background: #fff; }
+
+/* Leaf popup styles */
+.leaf-popup {
+  position: absolute;
+  min-width: 260px;
+  max-width: 360px;
+  background: rgba(255,255,255,0.98);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+  padding: 12px;
+  font-size: 13px;
+  color: #111;
+  z-index: 9999;
+}
+.leaf-popup h4 { margin: 0 0 6px 0; font-size: 15px; }
+.leaf-popup .meta { color: #666; font-size: 12px; margin-bottom: 8px; }
+.leaf-popup .controls { display:flex; gap:8px; align-items:center; }
+.leaf-popup button { padding:6px 10px; border-radius:6px; border:1px solid #ccc; background:#fff; cursor:pointer; }
+.leaf-popup .close-btn { position:absolute; right:8px; top:8px; background:transparent; border:none; font-weight:bold; cursor:pointer; }
+
+.leaf-badge {
+  display:inline-block;
+  padding:4px 8px;
+  border-radius:12px;
+  background: rgba(0,0,0,0.06);
+  font-size:12px;
+  color:#333;
+}
+
+/* small responsive tweaks */
 @media (max-width: 900px) {
   aside#controls { width: 100%; order: 2; max-height: 220px; }
   main { flex-direction: column; }
