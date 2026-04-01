@@ -3,72 +3,46 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>BirdNet Cafe — Banyan Sound Garden</title>
+  <title>Banyan Sound Garden — Single Tree Exhibit</title>
 
-  <!-- 本地相对 CSS（确保文件名与仓库一致：style.css） -->
+  <!-- 样式（确保文件名为 style.css） -->
   <link rel="stylesheet" href="./style.css" type="text/css" />
 
-  <!-- p5.js CDN（如需离线托管，可把文件放到 assets/ 并改为相对引用） -->
+  <!-- p5.js 与 p5.sound -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.6.0/p5.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.6.0/addons/p5.sound.min.js"></script>
 </head>
 <body>
-  <div id="app">
-    <header>
+  <div id="topbar">
+    <div class="brand">
       <h1>Banyan Sound Garden</h1>
-      <p class="subtitle">Art + science: import audio & BirdNET results, compose sound-driven visuals on a banyan canvas.</p>
-    </header>
+      <p class="subtitle">Hover a leaf to see species info and hear its call. Click Enable Audio first.</p>
+    </div>
 
-    <main>
-      <section id="canvas-wrap">
-        <div id="canvas-container"></div>
-      </section>
-
-      <aside id="controls">
-        <div class="panel">
-          <h3>Audio</h3>
-          <input id="audioFile" type="file" accept="audio/*" />
-          <div class="row">
-            <button id="playBtn">Play</button>
-            <button id="pauseBtn">Pause</button>
-            <button id="stopBtn">Stop</button>
-          </div>
-          <p id="audioStatus">No audio loaded</p>
-        </div>
-
-        <div class="panel">
-          <h3>Data</h3>
-          <label>BirdNET CSV</label>
-          <input id="birdnetFile" type="file" accept=".csv,text/csv" />
-          <label>AFCD CSV (HK list)</label>
-          <input id="afcdFile" type="file" accept=".csv,text/csv" />
-          <p id="dataStatus">No CSV loaded</p>
-        </div>
-
-        <div class="panel">
-          <h3>Layers</h3>
-          <div id="layerList" class="list"></div>
-          <div class="row">
-            <button id="addDemo">Add demo layer</button>
-            <button id="clearLayers">Clear</button>
-          </div>
-        </div>
-
-        <div class="panel">
-          <h3>Tips</h3>
-          <ul>
-            <li>Use 10–30s clips for best visual detail.</li>
-            <li>Click a BirdNET candidate to add its visual layer.</li>
-            <li>Drag leaves on the banyan to explore species info and play calls.</li>
-          </ul>
-        </div>
-      </aside>
-    </main>
-
-    <footer>
-      <small>Prototype — art + citizen science. Data sources: BirdNET outputs and AFCD Hong Kong bird list.</small>
-    </footer>
+    <div class="controls">
+      <label class="file-btn">Import BirdNET CSV
+        <input id="birdnetFile" type="file" accept=".csv,text/csv" />
+      </label>
+      <label class="file-btn">Import AFCD CSV
+        <input id="afcdFile" type="file" accept=".csv,text/csv" />
+      </label>
+      <label class="file-btn">Upload audio (optional)
+        <input id="audioFile" type="file" accept="audio/*" multiple />
+      </label>
+      <button id="enableAudioBtn">Enable Audio</button>
+      <button id="resetBtn">Reset</button>
+    </div>
   </div>
+
+  <main id="canvas-wrap">
+    <div id="canvas-container"></div>
+  </main>
+
+  <div id="popup-root"></div>
+
+  <footer id="footer">
+    <small>Prototype — art + citizen science. Hover leaves to explore species.</small>
+  </footer>
 
   <script src="./app.js"></script>
 </body>
