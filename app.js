@@ -1,38 +1,27 @@
-/* app.js
-   Frontend prototype for Banyan Sound Garden
+/* app.js - front-end prototype
    - p5.js handles canvas and audio FFT
    - DOM handles file inputs, CSV parsing, layer list and controls
 */
 
-/* -------------------------
-   Global state
-   ------------------------- */
 let canvas;
 let fft;
-let layers = []; // visual layer objects
-let currentAudio = null; // p5.Sound object for the currently loaded audio file
+let layers = [];
+let currentAudio = null;
 let audioURL = null;
-let birdnetRecords = []; // parsed BirdNET CSV rows
-let afcdList = []; // parsed AFCD CSV rows
+let birdnetRecords = [];
+let afcdList = [];
 
-/* -------------------------
-   p5.js setup
-   ------------------------- */
 function setup() {
-  // create canvas and attach to container
   const container = document.getElementById('canvas-container');
-  const w = container.clientWidth;
-  const h = container.clientHeight;
+  const w = container.clientWidth || 900;
+  const h = container.clientHeight || 600;
   canvas = createCanvas(w, h);
   canvas.parent('canvas-container');
   colorMode(HSB, 360, 100, 100, 100);
   fft = new p5.FFT(0.9, 1024);
 
-  // UI bindings
   bindUI();
-
-  // initial demo layer
-  // addDemoLayer();
+  refreshLayerList();
 }
 
 function windowResized() {
@@ -40,18 +29,13 @@ function windowResized() {
   resizeCanvas(container.clientWidth, container.clientHeight);
 }
 
-/* -------------------------
-   Draw loop: banyan + layers
-   ------------------------- */
 function draw() {
   background(220, 20, 98);
-  // draw banyan base
   push();
   translate(width * 0.5, height * 0.6);
   drawBanyanBase();
   pop();
 
-  // draw layers in order
   for (let i = 0; i < layers.length; i++) {
     const L = layers[i];
     push();
@@ -64,13 +48,9 @@ function draw() {
     pop();
   }
 
-  // draw selection card
   drawSelectionCard();
 }
 
-/* -------------------------
-   Banyan base (simple vector)
-   ------------------------- */
 function drawBanyanBase() {
   noStroke();
   fill(30, 30, 20);
@@ -89,9 +69,6 @@ function drawBanyanBase() {
   }
 }
 
-/* -------------------------
-   Layer visual (mountain-like)
-   ------------------------- */
 function drawLayerVisual(layer) {
   const spectrum = layer.spectrum || fft.analyze();
   const layersCount = 5;
@@ -117,20 +94,17 @@ function drawLayerVisual(layer) {
    UI bindings
    ------------------------- */
 function bindUI() {
-  // audio file input
   const audioInput = document.getElementById('audioFile');
-  audioInput.addEventListener('change', async (e) => {
+  audioInput.addEventListener('change', (e) => {
     const f = e.target.files[0];
     if (!f) return;
     if (currentAudio && currentAudio.isPlaying()) currentAudio.stop();
     if (audioURL) URL.revokeObjectURL(audioURL);
     audioURL = URL.createObjectURL(f);
-    // load via p5
     loadSound(audioURL, (s) => {
       currentAudio = s;
       currentAudio.setVolume(0.9);
       document.getElementById('audioStatus').innerText = `Loaded: ${f.name}`;
-      // create a layer from the whole audio by default
       createLayerFromAudio(currentAudio, f.name);
     }, (err) => {
       console.error('loadSound error', err);
@@ -138,7 +112,6 @@ function bindUI() {
     });
   });
 
-  // play/pause/stop
   document.getElementById('playBtn').addEventListener('click', () => {
     if (currentAudio) currentAudio.loop();
   });
@@ -152,7 +125,6 @@ function bindUI() {
     }
   });
 
-  // BirdNET CSV
   const birdnetInput = document.getElementById('birdnetFile');
   birdnetInput.addEventListener('change', (e) => {
     const f = e.target.files[0];
@@ -166,7 +138,6 @@ function bindUI() {
     reader.readAsText(f);
   });
 
-  // AFCD CSV
   const afcdInput = document.getElementById('afcdFile');
   afcdInput.addEventListener('change', (e) => {
     const f = e.target.files[0];
@@ -183,7 +154,6 @@ function bindUI() {
     reader.readAsText(f);
   });
 
-  // demo & clear
   document.getElementById('addDemo').addEventListener('click', () => addDemoLayer());
   document.getElementById('clearLayers').addEventListener('click', () => {
     layers = [];
@@ -192,7 +162,7 @@ function bindUI() {
 }
 
 /* -------------------------
-   CSV parsing (simple)
+   CSV parsing
    ------------------------- */
 function parseCSV(text) {
   const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
@@ -233,7 +203,7 @@ function splitCSVLine(line) {
 }
 
 /* -------------------------
-   BirdNET candidate UI
+   BirdNET UI
    ------------------------- */
 function showBirdnetCandidates() {
   const list = document.getElementById('layerList');
@@ -242,7 +212,6 @@ function showBirdnetCandidates() {
     list.innerHTML = '<div style="padding:6px;color:#777">No BirdNET records</div>';
     return;
   }
-  // show first 10 candidates as buttons
   const header = document.createElement('div');
   header.style.fontSize = '13px';
   header.style.marginBottom = '6px';
@@ -263,7 +232,7 @@ function showBirdnetCandidates() {
 }
 
 /* -------------------------
-   Create layer helpers
+   Create layers
    ------------------------- */
 function createLayerFromAudio(p5soundObj, label) {
   const L = {
@@ -283,7 +252,7 @@ function createLayerFromAudio(p5soundObj, label) {
     selected: false,
     afcdMatch: false
   };
-  L.spectrum = fft.analyze(); // initial snapshot
+  L.spectrum = fft.analyze();
   layers.push(L);
   refreshLayerList();
 }
@@ -310,9 +279,6 @@ function createLayerFromRecord(record) {
   refreshLayerList();
 }
 
-/* -------------------------
-   AFCD matching
-   ------------------------- */
 function matchAfcd(scientific, english) {
   if (!afcdList || afcdList.length === 0) return null;
   const sci = (scientific || '').toLowerCase().trim();
@@ -324,9 +290,6 @@ function matchAfcd(scientific, english) {
   return null;
 }
 
-/* -------------------------
-   Fake spectrum generator (for records without audio)
-   ------------------------- */
 function generateFakeSpectrum(name) {
   const arr = new Array(1024).fill(0).map((v, i) => {
     const base = 40 + 160 * noise(i * 0.01, frameCount * 0.001);
@@ -336,59 +299,53 @@ function generateFakeSpectrum(name) {
 }
 
 /* -------------------------
-   Layer list UI
+   Layer list & selection
    ------------------------- */
 function refreshLayerList() {
   const list = document.getElementById('layerList');
-  // if birdnet candidates are present, keep them; otherwise show layers
+  // If BirdNET candidates exist, keep them visible; otherwise show layers
   if (birdnetRecords && birdnetRecords.length > 0) {
-    // keep existing candidate UI (do nothing)
-  } else {
-    list.innerHTML = '';
-    if (layers.length === 0) {
-      list.innerHTML = '<div style="padding:6px;color:#777">No layers yet</div>';
-      return;
-    }
-    for (let i = layers.length - 1; i >= 0; i--) {
-      const L = layers[i];
-      const item = document.createElement('div');
-      item.className = 'layer-item';
-      item.innerHTML = `<div><strong>${L.label}</strong><br><small>${L.scientific || ''} ${L.confidence ? '(' + L.confidence.toFixed(2) + ')' : ''}</small></div>`;
-      const controls = document.createElement('div');
-      controls.style.display = 'flex';
-      controls.style.gap = '6px';
-      // select
-      const sel = document.createElement('button');
-      sel.innerText = 'Select';
-      sel.onclick = () => {
-        layers.forEach(x => x.selected = false);
-        L.selected = true;
-      };
-      controls.appendChild(sel);
-      // delete
-      const del = document.createElement('button');
-      del.innerText = 'Delete';
-      del.onclick = () => {
-        layers.splice(i, 1);
-        refreshLayerList();
-      };
-      controls.appendChild(del);
-      // opacity slider
-      const op = document.createElement('input');
-      op.type = 'range';
-      op.min = 0; op.max = 100; op.value = Math.round(L.opacity * 100);
-      op.style.width = '80px';
-      op.oninput = () => { L.opacity = op.value / 100; };
-      controls.appendChild(op);
-      item.appendChild(controls);
-      list.appendChild(item);
-    }
+    // keep candidate UI (do nothing)
+    return;
+  }
+  list.innerHTML = '';
+  if (layers.length === 0) {
+    list.innerHTML = '<div style="padding:6px;color:#777">No layers yet</div>';
+    return;
+  }
+  for (let i = layers.length - 1; i >= 0; i--) {
+    const L = layers[i];
+    const item = document.createElement('div');
+    item.className = 'layer-item';
+    item.innerHTML = `<div><strong>${L.label}</strong><br><small>${L.scientific || ''} ${L.confidence ? '(' + L.confidence.toFixed(2) + ')' : ''}</small></div>`;
+    const controls = document.createElement('div');
+    controls.style.display = 'flex';
+    controls.style.gap = '6px';
+    const sel = document.createElement('button');
+    sel.innerText = 'Select';
+    sel.onclick = () => {
+      layers.forEach(x => x.selected = false);
+      L.selected = true;
+    };
+    controls.appendChild(sel);
+    const del = document.createElement('button');
+    del.innerText = 'Delete';
+    del.onclick = () => {
+      layers.splice(i, 1);
+      refreshLayerList();
+    };
+    controls.appendChild(del);
+    const op = document.createElement('input');
+    op.type = 'range';
+    op.min = 0; op.max = 100; op.value = Math.round(L.opacity * 100);
+    op.style.width = '80px';
+    op.oninput = () => { L.opacity = op.value / 100; };
+    controls.appendChild(op);
+    item.appendChild(controls);
+    list.appendChild(item);
   }
 }
 
-/* -------------------------
-   Selection card
-   ------------------------- */
 function drawSelectionCard() {
   const sel = layers.find(l => l.selected);
   if (!sel) return;
@@ -408,13 +365,12 @@ function drawSelectionCard() {
 }
 
 /* -------------------------
-   Mouse interactions: drag & drop
+   Drag & drop
    ------------------------- */
 let dragging = null;
 let dragOffset = { x: 0, y: 0 };
 
 function mousePressed() {
-  // check layers top-down
   for (let i = layers.length - 1; i >= 0; i--) {
     const L = layers[i];
     const mx = mouseX - L.x;
@@ -423,7 +379,6 @@ function mousePressed() {
       dragging = L;
       dragOffset.x = mx;
       dragOffset.y = my;
-      // bring to front
       layers.splice(i, 1);
       layers.push(L);
       layers.forEach(x => x.selected = false);
@@ -432,7 +387,6 @@ function mousePressed() {
       return;
     }
   }
-  // click empty space: deselect
   layers.forEach(x => x.selected = false);
   refreshLayerList();
 }
@@ -460,9 +414,6 @@ function setBlendMode(name) {
   }
 }
 
-/* -------------------------
-   Demo layer
-   ------------------------- */
 function addDemoLayer() {
   const demo = {
     id: 'demo-' + Date.now(),
@@ -485,17 +436,6 @@ function addDemoLayer() {
   refreshLayerList();
 }
 
-/* -------------------------
-   Create layer from BirdNET record (helper for CSV)
-   ------------------------- */
-function createLayerFromRecord(record) {
-  createLayerFromRecord; // placeholder if needed externally
-}
-
-/* -------------------------
-   On load: refresh UI
-   ------------------------- */
 window.addEventListener('load', () => {
-  // ensure layer list shows placeholder
   refreshLayerList();
 });

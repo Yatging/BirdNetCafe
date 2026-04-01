@@ -2,10 +2,13 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>BirdNet Cafe — Banyan Sound Garden</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <link rel="stylesheet" href="styles.css" />
-  <!-- p5.js and p5.sound -->
+  <title>BirdNet Cafe — Banyan Sound Garden</title>
+
+  <!-- 本地相对 CSS（确保文件名与仓库一致：style.css） -->
+  <link rel="stylesheet" href="./style.css" type="text/css" />
+
+  <!-- p5.js CDN（如需离线托管，可把文件放到 assets/ 并改为相对引用） -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.6.0/p5.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.6.0/addons/p5.sound.min.js"></script>
 </head>
@@ -18,7 +21,6 @@
 
     <main>
       <section id="canvas-wrap">
-        <!-- p5 canvas will be injected here -->
         <div id="canvas-container"></div>
       </section>
 
@@ -68,6 +70,6 @@
     </footer>
   </div>
 
-  <script src="app.js"></script>
+  <script src="./app.js"></script>
 </body>
 </html>
