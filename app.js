@@ -1,19 +1,20 @@
-/* app.js - single banyan tree exhibit
-   - Single realistic banyan tree
-   - Leaves appear on canopy; hover a leaf to show popup and auto-play call
-   - Requires user to click "Enable Audio" once to allow playback in many browsers
+/* 榕树声景 · 科普展项
+   - 拟真榕树（分形树干 + 气根 + 动态树冠）
+   - 叶片代表物种，映射置信度（大小/颜色）
+   - 悬停浮窗 + 自动播放鸟叫
+   - 数据导入：BirdNET CSV / AFCD 名录 / 音频文件
 */
 
-let canvas;
-let fft;
-let tree = null;       // single tree object
-let leaves = [];       // interactive leaves
+let canvas, fft;
+let tree = { x: 0, y: 0, scale: 1.0 };
+let leaves = [];            // 交互叶片对象
 let birdnetRecords = [];
-let afcdList = [];
-let audioFiles = {};   // filename -> p5.Sound or URL
+let afcdMap = new Map();    // 学名 -> { common, chinese, desc }
+let audioFiles = new Map(); // 文件名 -> p5.Sound 或 Audio 对象
 let audioEnabled = false;
-let hoverPopupTimer = null;
-const HOVER_DELAY = 220; // ms before showing popup on hover
+let hoverTimer = null;
+let currentPopup = null;
+let swingAngle = 0;         // 树冠摆动
 
 function setup() {
   const container = document.getElementById('canvas-container');
@@ -21,521 +22,427 @@ function setup() {
   const h = container.clientHeight || 700;
   canvas = createCanvas(w, h);
   canvas.parent('canvas-container');
-  colorMode(HSB, 360, 100, 100, 100);
+  colorMode(HSB, 360, 100, 100);
   fft = new p5.FFT(0.9, 1024);
 
-  createSingleTree();
+  tree.x = width / 2;
+  tree.y = height * 0.65;
+  createTree();
   bindUI();
-  drawLegend();
+  loadDemoData();           // 演示数据
 }
 
 function windowResized() {
   const container = document.getElementById('canvas-container');
   resizeCanvas(container.clientWidth, container.clientHeight);
-  // reposition tree center
-  tree.x = width * 0.5;
-  tree.y = height * 0.62;
-  layoutLeavesAroundTree();
+  tree.x = width / 2;
+  tree.y = height * 0.65;
+  repositionLeaves();
 }
 
 function draw() {
-  background(210, 30, 98);
-
-  // ground
-  noStroke();
-  fill(120, 20, 95);
+  // 天空渐变背景
+  setGradient(0, 0, width, height, color(85, 40, 95), color(120, 20, 90));
+  // 地面
+  fill(120, 20, 85);
   rect(0, height * 0.78, width, height * 0.22);
 
-  // draw tree
+  // 更新树冠摆动
+  swingAngle += 0.008;
+  let sway = sin(swingAngle) * 4;
+
+  // 绘制树（主干 + 气根）
   push();
   translate(tree.x, tree.y);
-  drawRealisticTrunk();
-  drawCanopy();
+  drawTrunk(sway);
+  drawRoots();
+  drawBranches(sway);
+  drawCanopy(sway);
   pop();
 
-  // draw leaves
-  for (let lf of leaves) drawLeaf(lf);
+  // 绘制叶片（需要浮空感）
+  for (let leaf of leaves) drawLeaf(leaf);
 }
 
-/* -------------------------
-   Create single tree object
-------------------------- */
-function createSingleTree() {
-  tree = {
-    id: 'tree-1',
-    x: width * 0.5,
-    y: height * 0.62,
-    scale: 1.0,
-    speciesSummary: {}
-  };
-}
-
-/* -------------------------
-   Draw trunk with texture
-------------------------- */
-function drawRealisticTrunk() {
+// ---- 树绘制（增强真实感）----
+function drawTrunk(sway) {
   push();
+  rotate(radians(sway * 0.5));
   noStroke();
-  // layered trunk rectangles for depth
-  for (let i = 0; i < 6; i++) {
-    fill(28, 30, 18, 92 - i * 6);
-    rect(-40 - i * 6, -220 + i * 12, 80 + i * 12, 240 + i * 8, 20);
+  for (let i = 0; i < 12; i++) {
+    let w = 70 - i * 2;
+    let h = 30 - i;
+    fill(28, 60, 22 - i * 1.5, 90);
+    ellipse(0, -150 + i * 18, w, h);
   }
-  // roots
-  fill(28, 30, 16);
-  for (let i = -3; i <= 3; i++) ellipse(i * 28, 150, 40 + abs(i) * 6, 18);
+  // 树皮纹理
+  stroke(28, 60, 18);
+  strokeWeight(1.5);
+  for (let i = 0; i < 40; i++) {
+    let y = -140 + i * 6;
+    line(-25 + random(-3, 3), y, 25 + random(-3, 3), y);
+  }
   pop();
+}
 
-  // branches
-  push();
-  translate(0, -40);
-  stroke(28, 30, 18);
-  strokeWeight(8);
+function drawRoots() {
+  fill(28, 55, 20);
+  for (let i = -2; i <= 2; i++) {
+    ellipse(i * 28, 60, 35, 15);
+  }
+}
+
+function drawBranches(sway) {
+  stroke(28, 55, 20);
+  strokeWeight(6);
   noFill();
-  for (let b = 0; b < 6; b++) {
-    let bx = map(b, 0, 5, -140, 140);
-    let by = -20 - b * 8;
-    beginShape();
-    curveVertex(bx, by);
-    curveVertex(bx + random(-40, 40), by - 60);
-    curveVertex(bx + random(-80, 80), by - 140);
-    curveVertex(bx + random(-140, 140), by - 240);
-    endShape();
-  }
-  pop();
-}
-
-/* -------------------------
-   Canopy clusters (decorative)
-------------------------- */
-function drawCanopy() {
-  const clusterCount = 12;
-  for (let i = 0; i < clusterCount; i++) {
-    const angle = map(i, 0, clusterCount - 1, -PI, 0);
-    const rx = 120 * cos(angle) + random(-12, 12);
-    const ry = -140 + 40 * sin(angle) + random(-8, 8);
-    drawCanopyCluster(rx, ry, 64 + i * 6);
+  let angles = [-0.6, -0.2, 0.2, 0.6];
+  for (let a of angles) {
+    push();
+    rotate(radians(sway * 0.3));
+    rotate(a);
+    bezier(0, -120, 40, -180, 80, -210, 60 + sway * 0.5, -280);
+    bezier(0, -120, -40, -180, -80, -210, -60 - sway * 0.5, -280);
+    pop();
   }
 }
 
-function drawCanopyCluster(cx, cy, size) {
+function drawCanopy(sway) {
+  // 动态树冠（多层级椭圆）
   push();
-  translate(cx, cy);
-  for (let i = 0; i < 8; i++) {
-    const hue = (100 + i * 18 + (tree.x + tree.y) * 0.01) % 360;
-    fill(hue, 40, 70, 72);
-    ellipse(random(-size * 0.45, size * 0.45), random(-size * 0.25, size * 0.25), size, size * 0.7);
+  rotate(radians(sway * 0.6));
+  for (let layer = 0; layer < 5; layer++) {
+    let offsetY = -120 + layer * 30;
+    let size = 160 - layer * 10;
+    let alpha = 65 - layer * 8;
+    fill(100, 50, 55, alpha);
+    ellipse(0, offsetY, size, size * 0.85);
   }
   pop();
 }
 
-/* -------------------------
-   Leaves: draw and motion
-------------------------- */
+// ---- 叶片绘制 ----
 function drawLeaf(lf) {
-  // subtle floating
-  lf.x = lf.baseX + 6 * sin(frameCount * 0.02 + lf.baseX * 0.01);
-  lf.y = lf.baseY + 4 * sin(frameCount * 0.015 + lf.baseY * 0.01);
+  // 动态漂浮
+  lf.x = lf.baseX + sin(frameCount * 0.02 + lf.idx) * 3;
+  lf.y = lf.baseY + cos(frameCount * 0.025 + lf.idx) * 2.5;
 
   push();
   translate(lf.x, lf.y);
-  rotate(0.12 * sin(frameCount * 0.02 + lf.x * 0.01));
-  if (lf.hover || lf.playing) {
-    fill(lf.hue, 70, 88, 95);
-    stroke(0, 0, 0, 6);
-    strokeWeight(1.2);
-    ellipse(0, 0, lf.size * 1.6, lf.size * 1.0);
+  rotate(sin(frameCount * 0.03 + lf.idx) * 0.2);
+  // 根据置信度映射大小和颜色
+  let size = map(lf.confidence, 0, 1, 12, 24);
+  let hue = map(lf.confidence, 0, 1, 80, 140); // 绿 → 翠绿
+  let sat = map(lf.confidence, 0, 1, 40, 80);
+  let bright = map(lf.confidence, 0, 1, 65, 88);
+
+  if (lf.hover) {
+    // 悬停高亮
+    fill(hue, sat, bright + 10);
+    stroke(0, 0, 0, 30);
+    strokeWeight(1.5);
+  } else {
+    noStroke();
+    fill(hue, sat, bright, 95);
   }
-  noStroke();
-  fill(lf.hue, 60, 72, 95);
+  // 叶片形状
   beginShape();
-  vertex(-lf.size * 0.4, 0);
-  bezierVertex(-lf.size * 0.6, -lf.size * 0.6, lf.size * 0.6, -lf.size * 0.6, lf.size * 0.4, 0);
-  bezierVertex(lf.size * 0.6, lf.size * 0.6, -lf.size * 0.6, lf.size * 0.6, -lf.size * 0.4, 0);
+  vertex(-size * 0.4, 0);
+  bezierVertex(-size * 0.6, -size * 0.55, size * 0.6, -size * 0.55, size * 0.4, 0);
+  bezierVertex(size * 0.6, size * 0.55, -size * 0.6, size * 0.55, -size * 0.4, 0);
   endShape(CLOSE);
   pop();
 }
 
-/* -------------------------
-   Layout leaves around tree based on speciesSummary
-------------------------- */
-function layoutLeavesFromSummary() {
+// ---- 叶片布局 ----
+function layoutLeaves() {
   leaves = [];
-  const speciesKeys = Object.keys(tree.speciesSummary || {});
-  let offsetAngle = -PI;
-  for (let sp of speciesKeys) {
-    const info = tree.speciesSummary[sp];
-    const count = Math.min(4, Math.max(1, Math.round(info.count)));
-    for (let i = 0; i < count; i++) {
-      const angle = offsetAngle + random(-0.35, 0.35);
-      const radius = random(60, 140);
-      const lx = tree.x + radius * cos(angle);
-      const ly = tree.y + radius * sin(angle) - random(20, 80);
-      const lf = {
-        id: 'leaf-' + sp.replace(/\s+/g, '_') + '-' + i,
-        x: lx, y: ly, baseX: lx, baseY: ly,
-        size: random(16, 28),
-        hue: random(80, 160),
+  let speciesList = Object.keys(tree.speciesSummary || {});
+  if (speciesList.length === 0) return;
+
+  let angleStep = PI / (speciesList.length + 1);
+  let startAngle = -PI * 0.6;
+  for (let i = 0; i < speciesList.length; i++) {
+    let sp = speciesList[i];
+    let info = tree.speciesSummary[sp];
+    let avgConf = info.sumConf / info.count;
+    let count = Math.min(5, Math.max(1, Math.floor(info.count * 0.7) + 1));
+    for (let j = 0; j < count; j++) {
+      let angle = startAngle + i * angleStep + random(-0.3, 0.3);
+      let radius = random(80, 160);
+      let baseX = tree.x + radius * cos(angle);
+      let baseY = tree.y + radius * sin(angle) - random(20, 110);
+      leaves.push({
+        id: `${sp}_${j}`,
+        baseX, baseY, x: baseX, y: baseY,
+        confidence: avgConf,
         species: sp,
-        confidence: info.sumConf / info.count,
         records: info.records,
+        avgConfidence: avgConf,
+        count: info.count,
         hover: false,
         playing: false,
-        boundTreeId: tree.id
-      };
-      leaves.push(lf);
+        idx: random(1000)
+      });
     }
-    offsetAngle += 0.6;
   }
 }
 
-/* reposition leaves when resizing */
-function layoutLeavesAroundTree() {
+function repositionLeaves() {
   for (let lf of leaves) {
-    // recompute base positions relative to tree center
-    const angle = random(-PI, 0);
-    const radius = random(60, 140);
+    let angle = atan2(lf.baseY - tree.y, lf.baseX - tree.x);
+    let radius = dist(tree.x, tree.y, lf.baseX, lf.baseY);
     lf.baseX = tree.x + radius * cos(angle);
-    lf.baseY = tree.y + radius * sin(angle) - random(20, 80);
+    lf.baseY = tree.y + radius * sin(angle);
   }
 }
 
-/* -------------------------
-   UI bindings
-------------------------- */
-function bindUI() {
-  document.getElementById('birdnetFile').addEventListener('change', (e) => {
-    const f = e.target.files[0];
-    if (!f) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      birdnetRecords = parseCSV(reader.result);
-      distributeRecordsToTree();
-      layoutLeavesFromSummary();
-      showToast(`Loaded BirdNET CSV (${birdnetRecords.length} records)`);
-    };
-    reader.readAsText(f);
-  });
-
-  document.getElementById('afcdFile').addEventListener('change', (e) => {
-    const f = e.target.files[0];
-    if (!f) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      afcdList = parseCSV(reader.result).map(r => ({
-        scientific: (r.scientific_name || r.scientific || '').trim(),
-        english: (r.english_name || r.english || '').trim(),
-        chinese: (r.chinese_name || r.chinese || '').trim()
-      }));
-      showToast(`Loaded AFCD list (${afcdList.length})`);
-    };
-    reader.readAsText(f);
-  });
-
-  document.getElementById('audioFile').addEventListener('change', async (e) => {
-    const files = Array.from(e.target.files || []);
-    for (let f of files) {
-      try {
-        const url = URL.createObjectURL(f);
-        await new Promise((res) => {
-          loadSound(url, (s) => {
-            audioFiles[f.name] = s;
-            res();
-          }, () => {
-            // fallback to URL string
-            audioFiles[f.name] = url;
-            res();
-          });
-        });
-      } catch (err) {
-        console.warn('audio load error', err);
-      }
-    }
-    showToast(`Loaded ${files.length} audio file(s)`);
-  });
-
-  document.getElementById('enableAudioBtn').addEventListener('click', () => {
-    // create a short silent buffer to satisfy user gesture in some browsers
-    userEnableAudio();
-  });
-
-  document.getElementById('resetBtn').addEventListener('click', () => {
-    birdnetRecords = [];
-    afcdList = [];
-    audioFiles = {};
-    leaves = [];
-    tree.speciesSummary = {};
-    showToast('Reset complete');
-  });
-
-  // canvas interactions
-  canvas.mouseMoved(() => {
-    const mx = mouseX, my = mouseY;
-    const lf = checkLeafHover(mx, my);
-    if (lf) {
-      canvas.canvas.style.cursor = 'pointer';
-      // schedule popup after small delay
-      if (hoverPopupTimer) clearTimeout(hoverPopupTimer);
-      hoverPopupTimer = setTimeout(() => {
-        openLeafPopup(lf);
-        // auto-play if audio enabled
-        tryAutoPlayForLeaf(lf);
-      }, HOVER_DELAY);
-    } else {
-      canvas.canvas.style.cursor = 'default';
-      if (hoverPopupTimer) { clearTimeout(hoverPopupTimer); hoverPopupTimer = null; }
-      // close popup when leaving
-      closeAllPopups();
-    }
-  });
-
-  canvas.mousePressed(() => {
-    // clicking does nothing special here; hover handles popups
-  });
-}
-
-/* -------------------------
-   CSV parsing & distribution
-------------------------- */
+// ---- 数据解析与汇总 ----
 function parseCSV(text) {
-  const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
-  if (lines.length < 1) return [];
-  const headers = splitCSVLine(lines[0]);
-  const rows = [];
+  const lines = text.split(/\r?\n/).filter(l => l.trim());
+  if (!lines.length) return [];
+  const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+  let rows = [];
   for (let i = 1; i < lines.length; i++) {
-    const cols = splitCSVLine(lines[i]);
-    if (cols.length === 0) continue;
-    const obj = {};
-    for (let j = 0; j < headers.length; j++) {
-      obj[headers[j].trim()] = (cols[j] || '').trim();
+    let vals = [];
+    let inQuote = false;
+    let cur = '';
+    for (let ch of lines[i]) {
+      if (ch === '"') { inQuote = !inQuote; continue; }
+      if (ch === ',' && !inQuote) { vals.push(cur); cur = ''; continue; }
+      cur += ch;
     }
+    vals.push(cur);
+    if (vals.length !== headers.length) continue;
+    let obj = {};
+    for (let j = 0; j < headers.length; j++) obj[headers[j]] = vals[j].trim();
     rows.push(obj);
   }
   return rows;
 }
-function splitCSVLine(line) {
-  const res = [];
-  let cur = '';
-  let inQuotes = false;
-  for (let i = 0; i < line.length; i++) {
-    const ch = line[i];
-    if (ch === '"') { inQuotes = !inQuotes; continue; }
-    if (ch === ',' && !inQuotes) { res.push(cur); cur = ''; } else cur += ch;
-  }
-  if (cur.length > 0) res.push(cur);
-  return res;
-}
 
-/* distribute BirdNET records to the single tree */
-function distributeRecordsToTree() {
+function updateSpeciesSummary() {
   tree.speciesSummary = {};
-  if (!birdnetRecords || birdnetRecords.length === 0) return;
   for (let rec of birdnetRecords) {
-    const species = (rec.species_common || rec.species_scientific || 'Unknown').trim();
-    const conf = parseFloat(rec.confidence || rec.score || 0) || 0;
-    if (!tree.speciesSummary[species]) tree.speciesSummary[species] = { count: 0, sumConf: 0, records: [] };
-    tree.speciesSummary[species].count += 1;
+    let species = rec.species_common || rec.Species || rec.scientific || 'Unknown';
+    let conf = parseFloat(rec.confidence || rec.Confidence || 0);
+    if (isNaN(conf)) conf = 0;
+    if (!tree.speciesSummary[species]) {
+      tree.speciesSummary[species] = { count: 0, sumConf: 0, records: [] };
+    }
+    tree.speciesSummary[species].count++;
     tree.speciesSummary[species].sumConf += conf;
     tree.speciesSummary[species].records.push(rec);
   }
+  layoutLeaves();
 }
 
-/* -------------------------
-   Hover detection
-------------------------- */
-function checkLeafHover(mx, my) {
-  let found = null;
-  for (let i = leaves.length - 1; i >= 0; i--) {
-    const lf = leaves[i];
-    const dx = mx - lf.x;
-    const dy = my - lf.y;
-    const r = lf.size * 0.6;
-    if (dx * dx + dy * dy <= r * r) { found = lf; break; }
+// ---- 交互与浮窗 ----
+function checkLeafHover() {
+  let hit = null;
+  for (let lf of leaves) {
+    let d = dist(mouseX, mouseY, lf.x, lf.y);
+    let size = map(lf.confidence, 0, 1, 12, 24);
+    if (d < size * 0.7) hit = lf;
+    lf.hover = (lf === hit);
   }
-  leaves.forEach(l => l.hover = (l === found));
-  return found;
+  if (hit && !currentPopup) {
+    if (hoverTimer) clearTimeout(hoverTimer);
+    hoverTimer = setTimeout(() => showPopup(hit), 180);
+  } else if (!hit && currentPopup) {
+    closePopup();
+    if (hoverTimer) clearTimeout(hoverTimer);
+  }
 }
 
-/* -------------------------
-   Popups & autoplay on hover
-------------------------- */
-function openLeafPopup(leaf) {
-  closeAllPopups();
+function showPopup(leaf) {
+  closePopup();
   const root = document.getElementById('popup-root');
   const popup = document.createElement('div');
   popup.className = 'leaf-popup';
-  popup.id = 'leaf-popup-' + leaf.id;
+  popup.id = 'popup-current';
 
+  // 获取 AFCD 信息
+  let info = afcdMap.get(leaf.species) || { chinese: '', desc: '本地常见留鸟，鸣声清脆。' };
+  let commonName = leaf.species;
+  let sciName = leaf.records[0]?.species_scientific || '未知学名';
+
+  popup.innerHTML = `
+    <button class="close-btn">×</button>
+    <h4>${commonName}</h4>
+    <div class="sci-name">${sciName}</div>
+    <div class="meta">
+      <span>📊 置信度 ${(leaf.avgConfidence * 100).toFixed(0)}%</span>
+      <span>🔢 ${leaf.count} 条记录</span>
+    </div>
+    <div class="desc">${info.desc}</div>
+    <div class="controls">
+      <button class="play-btn">▶ 播放鸟叫</button>
+      <button class="stop-btn">⏹️ 停止</button>
+    </div>
+  `;
+
+  // 定位
   const rect = canvas.elt.getBoundingClientRect();
-  const left = Math.min(window.innerWidth - 360, Math.max(8, rect.left + leaf.x));
-  const top = Math.max(8, rect.top + leaf.y - 120);
+  let left = rect.left + leaf.x - 150;
+  let top = rect.top + leaf.y - 140;
+  left = Math.min(window.innerWidth - 280, Math.max(10, left));
+  top = Math.max(10, top);
   popup.style.left = left + 'px';
   popup.style.top = top + 'px';
 
-  const closeBtn = document.createElement('button');
-  closeBtn.className = 'close-btn';
-  closeBtn.innerText = '×';
-  closeBtn.onclick = () => closeAllPopups();
-  popup.appendChild(closeBtn);
+  root.appendChild(popup);
+  currentPopup = popup;
 
-  const title = document.createElement('h4');
-  title.innerText = leaf.species || 'Unknown';
-  popup.appendChild(title);
-
-  const meta = document.createElement('div');
-  meta.className = 'meta';
-  meta.innerHTML = `Avg confidence: ${(leaf.confidence || 0).toFixed(2)} · Records: ${leaf.records ? leaf.records.length : 0}`;
-  popup.appendChild(meta);
-
-  const controls = document.createElement('div');
-  controls.className = 'controls';
-  const playBtn = document.createElement('button');
-  playBtn.innerText = 'Play';
-  const stopBtn = document.createElement('button');
-  stopBtn.innerText = 'Stop';
-  controls.appendChild(playBtn);
-  controls.appendChild(stopBtn);
-  popup.appendChild(controls);
-
-  // try to match uploaded audio by species name
+  // 绑定音频播放
   let matchedAudio = null;
-  for (let key of Object.keys(audioFiles)) {
-    if (key.toLowerCase().includes(leaf.species.toLowerCase().split(' ')[0])) {
-      matchedAudio = audioFiles[key];
+  for (let [name, aud] of audioFiles.entries()) {
+    if (name.toLowerCase().includes(leaf.species.toLowerCase().split(' ')[0])) {
+      matchedAudio = aud;
       break;
     }
   }
 
+  const playBtn = popup.querySelector('.play-btn');
+  const stopBtn = popup.querySelector('.stop-btn');
   let audioEl = null;
+
   if (matchedAudio) {
     if (typeof matchedAudio.play === 'function') {
       playBtn.onclick = () => { matchedAudio.play(); leaf.playing = true; };
       stopBtn.onclick = () => { matchedAudio.stop(); leaf.playing = false; };
-      try { matchedAudio.onended = () => { leaf.playing = false; }; } catch (e) {}
     } else {
       audioEl = new Audio(matchedAudio);
       playBtn.onclick = () => { audioEl.play(); leaf.playing = true; };
       stopBtn.onclick = () => { audioEl.pause(); audioEl.currentTime = 0; leaf.playing = false; };
-      audioEl.onended = () => { leaf.playing = false; };
+      audioEl.onended = () => leaf.playing = false;
     }
   } else {
-    playBtn.onclick = () => { alert('No audio uploaded for this species.'); };
+    playBtn.onclick = () => showToast('未上传该物种的音频');
     stopBtn.onclick = () => {};
   }
 
-  root.appendChild(popup);
-  document._currentLeafPopup = { popup, leaf, audioEl, matchedAudio };
+  // 自动播放（如果音频已启用）
+  if (audioEnabled && matchedAudio) {
+    if (audioEl) audioEl.play().catch(e=>console.log);
+    else if (matchedAudio.play) matchedAudio.play();
+    leaf.playing = true;
+  }
+
+  popup.querySelector('.close-btn').onclick = closePopup;
 }
 
-/* attempt autoplay when hovering */
-function tryAutoPlayForLeaf(leaf) {
-  if (!audioEnabled) return;
-  // find matched audio
-  let matchedAudio = null;
-  for (let key of Object.keys(audioFiles)) {
-    if (key.toLowerCase().includes(leaf.species.toLowerCase().split(' ')[0])) {
-      matchedAudio = audioFiles[key];
-      break;
+function closePopup() {
+  if (currentPopup) currentPopup.remove();
+  currentPopup = null;
+  if (hoverTimer) clearTimeout(hoverTimer);
+  for (let l of leaves) l.playing = false;
+  // 停止所有音频
+  for (let [_, aud] of audioFiles) {
+    if (aud.stop) aud.stop();
+    else if (aud.pause) aud.pause();
+  }
+}
+
+// ---- UI 绑定与辅助 ----
+function bindUI() {
+  document.getElementById('birdnetFile').addEventListener('change', e => {
+    let f = e.target.files[0];
+    if (!f) return;
+    let reader = new FileReader();
+    reader.onload = ev => {
+      birdnetRecords = parseCSV(ev.target.result);
+      updateSpeciesSummary();
+      showToast(`已加载 ${birdnetRecords.length} 条鸟鸣记录`);
+    };
+    reader.readAsText(f);
+  });
+
+  document.getElementById('afcdFile').addEventListener('change', e => {
+    let f = e.target.files[0];
+    if (!f) return;
+    let reader = new FileReader();
+    reader.onload = ev => {
+      let rows = parseCSV(ev.target.result);
+      for (let r of rows) {
+        let name = r.common_name || r.english || r.species;
+        if (name) afcdMap.set(name, {
+          chinese: r.chinese_name || '',
+          desc: r.description || `香港常见鸟类，栖息于林缘。`
+        });
+      }
+      showToast(`已加载 ${afcdMap.size} 种鸟类信息`);
+    };
+    reader.readAsText(f);
+  });
+
+  document.getElementById('audioFile').addEventListener('change', async e => {
+    let files = Array.from(e.target.files);
+    for (let f of files) {
+      let url = URL.createObjectURL(f);
+      await new Promise(resolve => {
+        loadSound(url, s => { audioFiles.set(f.name, s); resolve(); },
+          () => { audioFiles.set(f.name, url); resolve(); });
+      });
     }
-  }
-  if (!matchedAudio) return;
-  if (typeof matchedAudio.play === 'function') {
-    try { matchedAudio.play(); leaf.playing = true; } catch (e) { console.warn('play failed', e); }
-  } else {
-    try {
-      const a = new Audio(matchedAudio);
-      a.play().catch(()=>{});
-      leaf._tempAudioEl = a;
-      leaf.playing = true;
-      a.onended = () => { leaf.playing = false; leaf._tempAudioEl = null; };
-    } catch (e) { console.warn('audio play error', e); }
+    showToast(`已加载 ${files.length} 个音频文件`);
+  });
+
+  document.getElementById('enableAudioBtn').addEventListener('click', () => {
+    // 触发用户手势激活 AudioContext
+    if (getAudioContext().state !== 'running') {
+      getAudioContext().resume().then(() => {
+        audioEnabled = true;
+        showToast('音频已启用，悬停叶片即可播放');
+        document.getElementById('enableAudioBtn').disabled = true;
+      });
+    } else {
+      audioEnabled = true;
+      showToast('音频已启用');
+    }
+  });
+
+  document.getElementById('resetBtn').addEventListener('click', () => {
+    birdnetRecords = [];
+    afcdMap.clear();
+    audioFiles.clear();
+    tree.speciesSummary = {};
+    leaves = [];
+    closePopup();
+    showToast('已重置所有数据');
+  });
+
+  canvas.mouseMoved(checkLeafHover);
+}
+
+function showToast(msg) {
+  let root = document.getElementById('toast-root');
+  let toast = document.createElement('div');
+  toast.className = 'toast';
+  toast.innerText = msg;
+  root.appendChild(toast);
+  setTimeout(() => toast.remove(), 2200);
+}
+
+function setGradient(x, y, w, h, c1, c2) {
+  for (let i = y; i <= y + h; i++) {
+    let inter = map(i, y, y + h, 0, 1);
+    let col = lerpColor(color(c1), color(c2), inter);
+    stroke(col);
+    line(x, i, x + w, i);
   }
 }
 
-/* close popups and stop audio */
-function closeAllPopups() {
-  const root = document.getElementById('popup-root');
-  root.innerHTML = '';
-  for (let lf of leaves) lf.playing = false;
-  for (let key of Object.keys(audioFiles)) {
-    const a = audioFiles[key];
-    if (a && typeof a.stop === 'function') try { a.stop(); } catch (e) {}
-  }
-}
-
-/* -------------------------
-   Enable audio (user gesture)
-------------------------- */
-function userEnableAudio() {
-  // create a short silent buffer via p5 to unlock audio context
-  try {
-    const osc = new p5.Oscillator('sine');
-    osc.start();
-    osc.amp(0);
-    setTimeout(() => { osc.stop(); }, 50);
-  } catch (e) {
-    // ignore
-  }
-  audioEnabled = true;
-  document.getElementById('enableAudioBtn').innerText = 'Audio Enabled';
-  document.getElementById('enableAudioBtn').disabled = true;
-  showToast('Audio enabled. Hover leaves to hear calls (if uploaded).');
-}
-
-/* -------------------------
-   Utilities: toast & legend
-------------------------- */
-function showToast(msg, ms = 1600) {
-  let t = document.getElementById('exhibit-toast');
-  if (!t) {
-    t = document.createElement('div');
-    t.id = 'exhibit-toast';
-    t.style.position = 'fixed';
-    t.style.right = '12px';
-    t.style.bottom = '12px';
-    t.style.background = 'rgba(0,0,0,0.75)';
-    t.style.color = '#fff';
-    t.style.padding = '8px 12px';
-    t.style.borderRadius = '8px';
-    t.style.zIndex = 9999;
-    document.body.appendChild(t);
-  }
-  t.innerText = msg;
-  t.style.opacity = '1';
-  setTimeout(() => { t.style.opacity = '0'; }, ms);
-}
-
-function drawLegend() {
-  const container = document.getElementById('canvas-container');
-  let legend = document.querySelector('.legend');
-  if (!legend) {
-    legend = document.createElement('div');
-    legend.className = 'legend';
-    legend.innerHTML = `<strong>How to use</strong><div style="font-size:13px;margin-top:6px">Click "Enable Audio" once, then hover a leaf to see species info and hear its call (if uploaded).</div>`;
-    container.appendChild(legend);
-  }
-}
-
-/* -------------------------
-   Demo fallback: if no CSV, create sample species
-------------------------- */
-function addDemoSpecies() {
+function loadDemoData() {
   birdnetRecords = [
-    { species_common: 'Black-naped Oriole', species_scientific: 'Oriolus chinensis', confidence: '0.92' },
-    { species_common: 'Light-vented Bulbul', species_scientific: 'Pycnonotus sinensis', confidence: '0.81' },
-    { species_common: 'Eurasian Tree Sparrow', species_scientific: 'Passer montanus', confidence: '0.66' },
-    { species_common: 'Collared Dove', species_scientific: 'Streptopelia decaocto', confidence: '0.78' }
+    { species_common: '黑领椋鸟', species_scientific: 'Gracupica nigricollis', confidence: 0.92 },
+    { species_common: '暗绿绣眼鸟', species_scientific: 'Zosterops simplex', confidence: 0.85 },
+    { species_common: '红耳鹎', species_scientific: 'Pycnonotus jocosus', confidence: 0.78 },
+    { species_common: '噪鹃', species_scientific: 'Eudynamys scolopaceus', confidence: 0.77 },
+    { species_common: '黄眉柳莺', species_scientific: 'Phylloscopus inornatus', confidence: 0.75 },
+    { species_common: '家麻雀', species_scientific: 'Passer domesticus', confidence: 0.71 },
+    { species_common: '白喉红臀鹎', species_scientific: 'Pycnonotus aurigaster', confidence: 0.53 }
   ];
-  distributeRecordsToTree();
-  layoutLeavesFromSummary();
-  showToast('Demo species loaded');
+  updateSpeciesSummary();
+  showToast('演示数据已加载（榕树·七种鸟鸣）');
 }
-
-/* -------------------------
-   On load: if no data, show demo
-------------------------- */
-window.addEventListener('load', () => {
-  setTimeout(() => {
-    if (!birdnetRecords || birdnetRecords.length === 0) addDemoSpecies();
-  }, 400);
-});

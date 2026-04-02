@@ -3,47 +3,43 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Banyan Sound Garden — Single Tree Exhibit</title>
-
-  <!-- 样式（确保文件名为 style.css） -->
+  <title>榕树声景 · 科普展项</title>
   <link rel="stylesheet" href="./style.css" type="text/css" />
-
-  <!-- p5.js 与 p5.sound -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.6.0/p5.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.6.0/addons/p5.sound.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/addons/p5.sound.min.js"></script>
 </head>
 <body>
-  <div id="topbar">
-    <div class="brand">
-      <h1>Banyan Sound Garden</h1>
-      <p class="subtitle">Hover a leaf to see species info and hear its call. Click Enable Audio first.</p>
-    </div>
+  <div id="app">
+    <header>
+      <div class="brand">
+        <h1>榕树声景</h1>
+        <p>探索树叶下的鸟鸣 · 科学公民项目</p>
+      </div>
+      <div class="toolbar">
+        <label class="btn secondary">
+          📁 导入 BirdNET
+          <input type="file" id="birdnetFile" accept=".csv" />
+        </label>
+        <label class="btn secondary">
+          📁 导入 AFCD 名录
+          <input type="file" id="afcdFile" accept=".csv" />
+        </label>
+        <label class="btn secondary">
+          🎵 上传音频
+          <input type="file" id="audioFile" accept="audio/*" multiple />
+        </label>
+        <button id="enableAudioBtn" class="btn primary">🔊 启用音频</button>
+        <button id="resetBtn" class="btn secondary">🔄 重置</button>
+      </div>
+    </header>
 
-    <div class="controls">
-      <label class="file-btn">Import BirdNET CSV
-        <input id="birdnetFile" type="file" accept=".csv,text/csv" />
-      </label>
-      <label class="file-btn">Import AFCD CSV
-        <input id="afcdFile" type="file" accept=".csv,text/csv" />
-      </label>
-      <label class="file-btn">Upload audio (optional)
-        <input id="audioFile" type="file" accept="audio/*" multiple />
-      </label>
-      <button id="enableAudioBtn">Enable Audio</button>
-      <button id="resetBtn">Reset</button>
-    </div>
+    <main>
+      <div id="canvas-container"></div>
+    </main>
+
+    <div id="popup-root"></div>
+    <div id="toast-root"></div>
   </div>
-
-  <main id="canvas-wrap">
-    <div id="canvas-container"></div>
-  </main>
-
-  <div id="popup-root"></div>
-
-  <footer id="footer">
-    <small>Prototype — art + citizen science. Hover leaves to explore species.</small>
-  </footer>
-
   <script src="./app.js"></script>
 </body>
 </html>
