@@ -1,18 +1,36 @@
-/* 榕树声景 v2.0
-   视觉升级：背景图片 + 动态光晕，叶片保留，交互保留
+/* BirdNetCafe · 翎英 (AvianLinked)
+   完整版：预置7种香港鸟类、主动飞鸟动画、多树管理、localStorage、地图、浮窗百科、音频播放
 */
 
-let canvas, fft;
-let tree = { x: 0, y: 0, scale: 1.0 };
-let leaves = [];
-let birdnetRecords = [];
-let afcdMap = new Map();
-let audioFiles = new Map();
+let canvas;
+let trees = [];               // 所有树对象
+let currentTreeId = null;
+let leaves = [];             // 当前树的叶片
+let afcdMap = new Map();     // 物种科普信息（可后续导入）
+let audioFiles = new Map();  // 全局音频库（文件名 → p5.Sound/URL）
 let audioEnabled = false;
 let hoverTimer = null;
 let currentPopup = null;
-let glow = 0;          // 用于光效动画
+let map = null;
 
+// ---------- 预置鸟类数据 ----------
+const PRESET_SPECIES = [
+  { common: "黑领椋鸟", scientific: "Gracupica nigricollis", confidence: 0.94, audioFile: "audio/黑领椋鸟.mp3", img: "https://cdn.pixabay.com/photo/2016/02/15/21/12/bird-1202513_1280.jpg" },
+  { common: "暗绿绣眼鸟", scientific: "Zosterops simplex", confidence: 0.85, audioFile: "audio/暗绿绣眼鸟.mp3", img: "https://cdn.pixabay.com/photo/2017/02/07/16/47/bird-2046324_1280.jpg" },
+  { common: "红耳鹎", scientific: "Pycnonotus jocosus", confidence: 0.78, audioFile: "audio/红耳鹎.mp3", img: "https://cdn.pixabay.com/photo/2020/10/18/09/09/bulbul-5663544_1280.jpg" },
+  { common: "噪鹃", scientific: "Eudynamys scolopaceus", confidence: 0.77, audioFile: "audio/噪鹃.mp3", img: "https://cdn.pixabay.com/photo/2018/05/09/19/24/bird-3386321_1280.jpg" },
+  { common: "黄眉柳莺", scientific: "Phylloscopus inornatus", confidence: 0.75, audioFile: "audio/黄眉柳莺.mp3", img: "https://cdn.pixabay.com/photo/2017/02/07/16/47/warbler-2046331_1280.jpg" },
+  { common: "家麻雀", scientific: "Passer domesticus", confidence: 0.71, audioFile: "audio/家麻雀.mp3", img: "https://cdn.pixabay.com/photo/2017/02/07/16/47/sparrow-2046330_1280.jpg" },
+  { common: "白喉红臀鹎", scientific: "Pycnonotus aurigaster", confidence: 0.53, audioFile: "audio/白喉红臀鹎.mp3", img: "https://cdn.pixabay.com/photo/2019/03/23/14/41/bird-4076583_1280.jpg" }
+];
+const DEFAULT_BIRD_IMG = "https://cdn.pixabay.com/photo/2013/07/25/13/01/bird-167146_1280.png";
+
+// 飞鸟动画队列
+let birdAnimationQueue = [];
+let isAnimating = false;
+let flyingBirdDivs = [];
+
+// ---------- p5.js 初始化 ----------
 function setup() {
   const container = document.getElementById('canvas-container');
   const w = container.clientWidth || 1000;
@@ -20,47 +38,127 @@ function setup() {
   canvas = createCanvas(w, h);
   canvas.parent('canvas-container');
   colorMode(HSB, 360, 100, 100);
-  fft = new p5.FFT(0.9, 1024);
 
-  // 树的位置（用于叶片布局）
-  tree.x = width / 2;
-  tree.y = height * 0.65;
-
-  // 初始化交互
+  initMap();
+  loadTreesFromLocalStorage();
+  if (trees.length === 0) {
+    createPresetTree();
+  }
+  setCurrentTree(trees[0].id);
+  updateTreeListUI();
   bindUI();
-  loadDemoData();
+
+  // 延迟启动飞鸟动画，确保叶片已布局
+  setTimeout(() => startBirdFlyAnimation(), 800);
 }
 
 function windowResized() {
   const container = document.getElementById('canvas-container');
   resizeCanvas(container.clientWidth, container.clientHeight);
-  tree.x = width / 2;
-  tree.y = height * 0.65;
-  repositionLeaves();
+  let current = getCurrentTree();
+  if (current) {
+    current.x = width / 2;
+    current.y = height * 0.65;
+    repositionLeaves();
+  }
 }
 
 function draw() {
-  // 背景透明，让 CSS 背景图片透出
   clear();
   noStroke();
-
-  // 绘制柔和的光晕（模拟树冠下的光斑）
-  glow = (glow + 0.01) % TWO_PI;
+  // 光晕效果
+  let glow = (frameCount * 0.02) % TWO_PI;
   let rad = 200 + sin(glow) * 20;
-  for (let i = 0; i < 3; i++) {
-    fill(60, 15, 92, 5 - i * 1.5);
-    ellipse(tree.x, tree.y - 40, rad + i * 30, rad + i * 30);
-  }
-
-  // 绘制一个半透明的地面投影，增强真实感
-  fill(0, 0, 0, 10);
-  ellipse(tree.x, height - 20, 300, 50);
-
+  fill(60, 15, 92, 8);
+  ellipse(width/2, height*0.65 - 40, rad, rad);
+  fill(0,0,0,10);
+  ellipse(width/2, height - 20, 300, 50);
   // 绘制叶片
   for (let leaf of leaves) drawLeaf(leaf);
 }
 
-// 叶片绘制（简洁抽象，依然优雅）
+// ---------- 树与叶片管理 ----------
+function getCurrentTree() {
+  return trees.find(t => t.id === currentTreeId);
+}
+
+function createPresetTree() {
+  const tree = {
+    id: 'preset_tree',
+    name: '香港公园 · 榕树',
+    lat: 22.278,
+    lng: 114.162,
+    x: width/2,
+    y: height*0.65,
+    speciesSummary: {},
+    audioMap: new Map(),   // 物种 → 音频URL或p5对象
+    birdnetRecords: []
+  };
+  let summary = {};
+  for (let sp of PRESET_SPECIES) {
+    summary[sp.common] = {
+      count: 1,
+      sumConf: sp.confidence,
+      records: [{ species_common: sp.common, species_scientific: sp.scientific, confidence: sp.confidence }]
+    };
+    // 尝试预加载音频（如果文件存在）
+    if (sp.audioFile) {
+      // 实际加载在音频启用时或悬停时动态加载，此处仅记录路径
+      tree.audioMap.set(sp.common, sp.audioFile);
+    }
+  }
+  tree.speciesSummary = summary;
+  trees.push(tree);
+  saveTreesToLocalStorage();
+}
+
+function updateCurrentTreeLeaves() {
+  let treeObj = getCurrentTree();
+  if (!treeObj) return;
+  leaves = [];
+  let speciesList = Object.keys(treeObj.speciesSummary || {});
+  if (speciesList.length === 0) return;
+
+  let angleStep = PI / (speciesList.length + 1);
+  let startAngle = -PI * 0.6;
+  for (let i = 0; i < speciesList.length; i++) {
+    let sp = speciesList[i];
+    let info = treeObj.speciesSummary[sp];
+    let avgConf = info.sumConf / info.count;
+    let leafCount = Math.min(5, Math.max(1, Math.floor(info.count * 0.7) + 1));
+    for (let j = 0; j < leafCount; j++) {
+      let angle = startAngle + i * angleStep + random(-0.3, 0.3);
+      let radius = random(80, 160);
+      let baseX = treeObj.x + radius * cos(angle);
+      let baseY = treeObj.y + radius * sin(angle) - random(20, 110);
+      leaves.push({
+        id: `${sp}_${j}`,
+        baseX, baseY, x: baseX, y: baseY,
+        confidence: avgConf,
+        species: sp,
+        records: info.records,
+        avgConfidence: avgConf,
+        count: info.count,
+        hover: false,
+        playing: false,
+        idx: random(1000),
+        highlight: false
+      });
+    }
+  }
+}
+
+function repositionLeaves() {
+  let treeObj = getCurrentTree();
+  if (!treeObj) return;
+  for (let lf of leaves) {
+    let angle = atan2(lf.baseY - treeObj.y, lf.baseX - treeObj.x);
+    let radius = dist(treeObj.x, treeObj.y, lf.baseX, lf.baseY);
+    lf.baseX = treeObj.x + radius * cos(angle);
+    lf.baseY = treeObj.y + radius * sin(angle);
+  }
+}
+
 function drawLeaf(lf) {
   lf.x = lf.baseX + sin(frameCount * 0.02 + lf.idx) * 2.5;
   lf.y = lf.baseY + cos(frameCount * 0.025 + lf.idx) * 2;
@@ -72,7 +170,6 @@ function drawLeaf(lf) {
   let hue = map(lf.confidence, 0, 1, 80, 130);
   let sat = map(lf.confidence, 0, 1, 50, 85);
   let bright = map(lf.confidence, 0, 1, 70, 92);
-
   if (lf.hover) {
     fill(hue, sat, bright + 10);
     stroke(0, 0, 0, 40);
@@ -81,8 +178,10 @@ function drawLeaf(lf) {
     noStroke();
     fill(hue, sat, bright, 92);
   }
-
-  // 水滴形叶片
+  if (lf.highlight) {
+    fill(hue, sat, 95, 80);
+    ellipse(0, 0, size*1.4, size*0.9);
+  }
   beginShape();
   vertex(-size * 0.4, 0);
   bezierVertex(-size * 0.6, -size * 0.55, size * 0.6, -size * 0.55, size * 0.4, 0);
@@ -91,89 +190,60 @@ function drawLeaf(lf) {
   pop();
 }
 
-// ----- 数据与叶片布局 -----
-function parseCSV(text) {
-  const lines = text.split(/\r?\n/).filter(l => l.trim());
-  if (!lines.length) return [];
-  const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
-  let rows = [];
-  for (let i = 1; i < lines.length; i++) {
-    let vals = [];
-    let inQuote = false;
-    let cur = '';
-    for (let ch of lines[i]) {
-      if (ch === '"') { inQuote = !inQuote; continue; }
-      if (ch === ',' && !inQuote) { vals.push(cur); cur = ''; continue; }
-      cur += ch;
-    }
-    vals.push(cur);
-    if (vals.length !== headers.length) continue;
-    let obj = {};
-    for (let j = 0; j < headers.length; j++) obj[headers[j]] = vals[j].trim();
-    rows.push(obj);
-  }
-  return rows;
-}
-
-function updateSpeciesSummary() {
-  tree.speciesSummary = {};
-  for (let rec of birdnetRecords) {
-    let species = rec.species_common || rec.Species || rec.scientific || 'Unknown';
-    let conf = parseFloat(rec.confidence || rec.Confidence || 0);
-    if (isNaN(conf)) conf = 0;
-    if (!tree.speciesSummary[species]) {
-      tree.speciesSummary[species] = { count: 0, sumConf: 0, records: [] };
-    }
-    tree.speciesSummary[species].count++;
-    tree.speciesSummary[species].sumConf += conf;
-    tree.speciesSummary[species].records.push(rec);
-  }
-  layoutLeaves();
-}
-
-function layoutLeaves() {
-  leaves = [];
-  let speciesList = Object.keys(tree.speciesSummary || {});
-  if (speciesList.length === 0) return;
-
-  let angleStep = PI / (speciesList.length + 1);
-  let startAngle = -PI * 0.6;
-  for (let i = 0; i < speciesList.length; i++) {
-    let sp = speciesList[i];
-    let info = tree.speciesSummary[sp];
-    let avgConf = info.sumConf / info.count;
-    let count = Math.min(5, Math.max(1, Math.floor(info.count * 0.7) + 1));
-    for (let j = 0; j < count; j++) {
-      let angle = startAngle + i * angleStep + random(-0.3, 0.3);
-      let radius = random(80, 160);
-      let baseX = tree.x + radius * cos(angle);
-      let baseY = tree.y + radius * sin(angle) - random(20, 110);
-      leaves.push({
-        id: `${sp}_${j}`,
-        baseX, baseY, x: baseX, y: baseY,
-        confidence: avgConf,
-        species: sp,
-        records: info.records,
-        avgConfidence: avgConf,
-        count: info.count,
-        hover: false,
-        playing: false,
-        idx: random(1000)
-      });
+// ---------- 主动飞鸟动画 ----------
+function startBirdFlyAnimation() {
+  if (leaves.length === 0) return;
+  // 每个物种派一只鸟代表
+  let speciesDone = new Set();
+  let tasks = [];
+  for (let leaf of leaves) {
+    if (!speciesDone.has(leaf.species)) {
+      speciesDone.add(leaf.species);
+      tasks.push({ species: leaf.species, targetLeaf: leaf });
     }
   }
+  // 随机顺序
+  tasks.sort(() => Math.random() - 0.5);
+  birdAnimationQueue = tasks;
+  processNextBird();
 }
 
-function repositionLeaves() {
-  for (let lf of leaves) {
-    let angle = atan2(lf.baseY - tree.y, lf.baseX - tree.x);
-    let radius = dist(tree.x, tree.y, lf.baseX, lf.baseY);
-    lf.baseX = tree.x + radius * cos(angle);
-    lf.baseY = tree.y + radius * sin(angle);
-  }
+function processNextBird() {
+  if (birdAnimationQueue.length === 0) return;
+  let task = birdAnimationQueue.shift();
+  flyBirdToLeaf(task.species, task.targetLeaf, () => {
+    task.targetLeaf.highlight = true;
+    setTimeout(() => { task.targetLeaf.highlight = false; }, 800);
+    setTimeout(() => processNextBird(), 400);
+  });
 }
 
-// ----- 交互逻辑（保持不变）-----
+function flyBirdToLeaf(species, targetLeaf, onComplete) {
+  let preset = PRESET_SPECIES.find(s => s.common === species);
+  let imgUrl = preset ? preset.img : DEFAULT_BIRD_IMG;
+  // 随机起始位置（画布外）
+  let startX = random(-100, width+100);
+  let startY = random(-100, -50);
+  if (random() > 0.5) startY = height + 50;
+  let canvasRect = canvas.elt.getBoundingClientRect();
+  let targetX = canvasRect.left + targetLeaf.x;
+  let targetY = canvasRect.top + targetLeaf.y;
+  let birdDiv = document.createElement('div');
+  birdDiv.className = 'flying-bird';
+  birdDiv.style.backgroundImage = `url(${imgUrl})`;
+  birdDiv.style.left = startX + 'px';
+  birdDiv.style.top = startY + 'px';
+  birdDiv.style.setProperty('--tx', (targetX - startX) + 'px');
+  birdDiv.style.setProperty('--ty', (targetY - startY) + 'px');
+  document.body.appendChild(birdDiv);
+  flyingBirdDivs.push(birdDiv);
+  birdDiv.addEventListener('animationend', () => {
+    birdDiv.remove();
+    if (onComplete) onComplete();
+  });
+}
+
+// ---------- 悬停浮窗与音频 ----------
 function checkLeafHover() {
   let hit = null;
   for (let lf of leaves) {
@@ -191,77 +261,65 @@ function checkLeafHover() {
   }
 }
 
-function showPopup(leaf) {
+async function showPopup(leaf) {
   closePopup();
+  let species = leaf.species;
+  let preset = PRESET_SPECIES.find(s => s.common === species);
+  let imgUrl = preset ? preset.img : DEFAULT_BIRD_IMG;
+  let wikiUrl = `https://zh.wikipedia.org/wiki/${encodeURIComponent(species)}`;
+  let sciName = leaf.records[0]?.species_scientific || (preset ? preset.scientific : '未知');
+  let desc = afcdMap.get(species) || '香港常见鸟类，鸣声独特。';
+
   const root = document.getElementById('popup-root');
   const popup = document.createElement('div');
   popup.className = 'leaf-popup';
-  popup.id = 'popup-current';
-
-  let info = afcdMap.get(leaf.species) || { chinese: '', desc: '香港常见鸟类，鸣声独特。' };
-  let commonName = leaf.species;
-  let sciName = leaf.records[0]?.species_scientific || '未知学名';
-
   popup.innerHTML = `
     <button class="close-btn">×</button>
-    <h4>${commonName}</h4>
-    <div class="sci-name">${sciName}</div>
-    <div class="meta">
-      <span>📊 置信度 ${(leaf.avgConfidence * 100).toFixed(0)}%</span>
-      <span>🔢 ${leaf.count} 条记录</span>
+    <div style="display:flex; gap:12px;">
+      <img src="${imgUrl}" style="width:70px; height:70px; object-fit:cover; border-radius:12px;">
+      <div><h4>${species}</h4><div class="sci-name">${sciName}</div></div>
     </div>
-    <div class="desc">${info.desc}</div>
+    <div class="meta">📊 置信度 ${(leaf.avgConfidence*100).toFixed(0)}% · 🔢 ${leaf.count}条记录</div>
+    <div class="desc">${desc}</div>
     <div class="controls">
       <button class="play-btn">▶ 播放鸟叫</button>
       <button class="stop-btn">⏹️ 停止</button>
+      <a href="${wikiUrl}" target="_blank" class="btn-icon">📖 百科</a>
     </div>
   `;
-
   const rect = canvas.elt.getBoundingClientRect();
   let left = rect.left + leaf.x - 150;
   let top = rect.top + leaf.y - 140;
-  left = Math.min(window.innerWidth - 280, Math.max(10, left));
+  left = Math.min(window.innerWidth-280, Math.max(10, left));
   top = Math.max(10, top);
   popup.style.left = left + 'px';
   popup.style.top = top + 'px';
-
   root.appendChild(popup);
   currentPopup = popup;
 
-  // 音频匹配
-  let matchedAudio = null;
-  for (let [name, aud] of audioFiles.entries()) {
-    if (name.toLowerCase().includes(leaf.species.toLowerCase().split(' ')[0])) {
-      matchedAudio = aud;
-      break;
-    }
-  }
+  // 音频处理
+  let tree = getCurrentTree();
+  let audioPath = tree.audioMap.get(species);
+  let playBtn = popup.querySelector('.play-btn');
+  let stopBtn = popup.querySelector('.stop-btn');
+  let audioObj = null;
 
-  const playBtn = popup.querySelector('.play-btn');
-  const stopBtn = popup.querySelector('.stop-btn');
-  let audioEl = null;
-
-  if (matchedAudio) {
-    if (typeof matchedAudio.play === 'function') {
-      playBtn.onclick = () => { matchedAudio.play(); leaf.playing = true; };
-      stopBtn.onclick = () => { matchedAudio.stop(); leaf.playing = false; };
+  if (audioPath && audioEnabled) {
+    if (typeof audioPath === 'string') {
+      // 动态加载音频文件
+      audioObj = new Audio(audioPath);
+      playBtn.onclick = () => audioObj.play();
+      stopBtn.onclick = () => { audioObj.pause(); audioObj.currentTime = 0; };
+    } else if (typeof audioPath.play === 'function') {
+      playBtn.onclick = () => audioPath.play();
+      stopBtn.onclick = () => audioPath.stop();
     } else {
-      audioEl = new Audio(matchedAudio);
-      playBtn.onclick = () => { audioEl.play(); leaf.playing = true; };
-      stopBtn.onclick = () => { audioEl.pause(); audioEl.currentTime = 0; leaf.playing = false; };
-      audioEl.onended = () => leaf.playing = false;
+      playBtn.onclick = () => showToast('音频格式不支持');
     }
   } else {
-    playBtn.onclick = () => showToast('未上传该物种的音频');
+    playBtn.onclick = () => showToast('未上传该物种的音频或未启用音频');
     stopBtn.onclick = () => {};
   }
-
-  if (audioEnabled && matchedAudio) {
-    if (audioEl) audioEl.play().catch(e=>console.log);
-    else if (matchedAudio.play) matchedAudio.play();
-    leaf.playing = true;
-  }
-
   popup.querySelector('.close-btn').onclick = closePopup;
 }
 
@@ -269,89 +327,216 @@ function closePopup() {
   if (currentPopup) currentPopup.remove();
   currentPopup = null;
   if (hoverTimer) clearTimeout(hoverTimer);
-  for (let l of leaves) l.playing = false;
-  for (let [_, aud] of audioFiles) {
-    if (aud.stop) aud.stop();
-    else if (aud.pause) aud.pause();
-  }
 }
 
-// ----- UI 绑定与辅助函数 -----
-function bindUI() {
-  document.getElementById('birdnetFile').addEventListener('change', e => {
-    let f = e.target.files[0];
-    if (!f) return;
-    let reader = new FileReader();
-    reader.onload = ev => {
-      birdnetRecords = parseCSV(ev.target.result);
-      updateSpeciesSummary();
-      showToast(`已加载 ${birdnetRecords.length} 条鸟鸣记录`);
-    };
-    reader.readAsText(f);
+// ---------- 地图与多树管理 ----------
+function initMap() {
+  map = L.map('map').setView([22.278, 114.162], 13);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>'
+  }).addTo(map);
+  map.on('click', (e) => {
+    document.getElementById('newTreeCoords').value = `${e.latlng.lat}, ${e.latlng.lng}`;
+    document.getElementById('createTreeModal').style.display = 'flex';
   });
+}
 
-  document.getElementById('afcdFile').addEventListener('change', e => {
-    let f = e.target.files[0];
-    if (!f) return;
-    let reader = new FileReader();
-    reader.onload = ev => {
-      let rows = parseCSV(ev.target.result);
-      for (let r of rows) {
-        let name = r.common_name || r.english || r.species;
-        if (name) afcdMap.set(name, {
-          chinese: r.chinese_name || '',
-          desc: r.description || `香港常见鸟类，栖息于林缘。`
-        });
-      }
-      showToast(`已加载 ${afcdMap.size} 种鸟类信息`);
-    };
-    reader.readAsText(f);
+function addMapMarker(tree) {
+  let marker = L.marker([tree.lat, tree.lng]).addTo(map);
+  marker.bindPopup(`<b>${tree.name}</b>`);
+  marker.on('click', () => setCurrentTree(tree.id));
+  tree.marker = marker;
+}
+
+function updateTreeListUI() {
+  let ul = document.getElementById('tree-list');
+  ul.innerHTML = '';
+  trees.forEach(tree => {
+    let li = document.createElement('li');
+    li.textContent = tree.name;
+    if (tree.id === currentTreeId) li.classList.add('active');
+    li.onclick = () => setCurrentTree(tree.id);
+    ul.appendChild(li);
   });
+}
 
-  document.getElementById('audioFile').addEventListener('change', async e => {
-    let files = Array.from(e.target.files);
-    for (let f of files) {
-      let url = URL.createObjectURL(f);
-      await new Promise(resolve => {
-        loadSound(url, s => { audioFiles.set(f.name, s); resolve(); },
-          () => { audioFiles.set(f.name, url); resolve(); });
-      });
+function setCurrentTree(id) {
+  currentTreeId = id;
+  let tree = getCurrentTree();
+  if (tree && tree.marker) map.setView([tree.lat, tree.lng], 15);
+  updateCurrentTreeLeaves();
+  updateTreeListUI();
+  startBirdFlyAnimation();  // 切换树后重新播放飞鸟动画
+}
+
+function saveTreesToLocalStorage() {
+  let serializable = trees.map(t => ({
+    id: t.id, name: t.name, lat: t.lat, lng: t.lng,
+    x: t.x, y: t.y,
+    speciesSummary: t.speciesSummary,
+    audioMap: Array.from(t.audioMap.entries()),
+    birdnetRecords: t.birdnetRecords
+  }));
+  localStorage.setItem('birdnetcafe_trees', JSON.stringify(serializable));
+}
+
+function loadTreesFromLocalStorage() {
+  let data = localStorage.getItem('birdnetcafe_trees');
+  if (!data) return;
+  let parsed = JSON.parse(data);
+  trees = parsed.map(t => ({
+    ...t,
+    audioMap: new Map(t.audioMap)
+  }));
+  trees.forEach(t => addMapMarker(t));
+}
+
+// 创建新树（模态框）
+async function createNewTree(name, lat, lng, csvFile, audioFilesList) {
+  let newId = 'tree_' + Date.now();
+  let tree = {
+    id: newId, name: name, lat: lat, lng: lng,
+    x: width/2, y: height*0.65,
+    speciesSummary: {},
+    audioMap: new Map(),
+    birdnetRecords: []
+  };
+  if (csvFile) {
+    let text = await csvFile.text();
+    let records = parseCSV(text);
+    tree.birdnetRecords = records;
+    let summary = {};
+    for (let rec of records) {
+      let species = rec.species_common || rec.Species || rec.scientific || 'Unknown';
+      let conf = parseFloat(rec.confidence || rec.Confidence || 0);
+      if (isNaN(conf)) conf = 0;
+      if (!summary[species]) summary[species] = { count:0, sumConf:0, records:[] };
+      summary[species].count++;
+      summary[species].sumConf += conf;
+      summary[species].records.push(rec);
     }
-    showToast(`已加载 ${files.length} 个音频文件`);
-  });
+    tree.speciesSummary = summary;
+  }
+  for (let file of audioFilesList) {
+    let url = URL.createObjectURL(file);
+    let speciesHint = file.name.replace(/\.[^/.]+$/, '');
+    for (let sp of Object.keys(tree.speciesSummary)) {
+      if (speciesHint.includes(sp) || sp.includes(speciesHint)) {
+        tree.audioMap.set(sp, url);
+        break;
+      }
+    }
+  }
+  trees.push(tree);
+  addMapMarker(tree);
+  saveTreesToLocalStorage();
+  setCurrentTree(newId);
+  showToast(`新树“${name}”已创建！`);
+}
 
+function parseCSV(text) {
+  const lines = text.split(/\r?\n/).filter(l=>l.trim());
+  if (lines.length<1) return [];
+  const headers = lines[0].split(',').map(h=>h.trim().replace(/^"|"$/g,''));
+  let rows=[];
+  for(let i=1;i<lines.length;i++){
+    let vals=[], cur='', inQuote=false;
+    for(let ch of lines[i]){
+      if(ch==='"'){ inQuote=!inQuote; continue; }
+      if(ch===',' && !inQuote){ vals.push(cur); cur=''; continue; }
+      cur+=ch;
+    }
+    vals.push(cur);
+    if(vals.length!==headers.length) continue;
+    let obj={};
+    for(let j=0;j<headers.length;j++) obj[headers[j]]=vals[j].trim();
+    rows.push(obj);
+  }
+  return rows;
+}
+
+// ---------- UI 绑定 ----------
+function bindUI() {
+  canvas.mouseMoved(checkLeafHover);
   document.getElementById('enableAudioBtn').addEventListener('click', () => {
     if (getAudioContext().state !== 'running') {
       getAudioContext().resume().then(() => {
         audioEnabled = true;
-        showToast('音频已启用，悬停叶片即可播放');
-        document.getElementById('enableAudioBtn').disabled = true;
+        showToast('音频已启用，悬停叶片可播放');
       });
     } else {
       audioEnabled = true;
       showToast('音频已启用');
     }
   });
-
   document.getElementById('resetBtn').addEventListener('click', () => {
-    birdnetRecords = [];
-    afcdMap.clear();
-    audioFiles.clear();
-    tree.speciesSummary = {};
-    leaves = [];
-    closePopup();
-    showToast('已重置所有数据');
+    localStorage.clear();
+    location.reload();
   });
-
-  canvas.mouseMoved(checkLeafHover);
-
-  // 关于项目模态框
-  const modal = document.getElementById('aboutModal');
-  const aboutBtn = document.getElementById('aboutBtn');
-  const closeModal = document.querySelector('.close-modal');
-  aboutBtn.onclick = () => modal.style.display = 'flex';
-  closeModal.onclick = () => modal.style.display = 'none';
-  window.onclick = (e) => { if (e.target === modal) modal.style.display = 'none'; };
+  document.getElementById('createTreeBtn').addEventListener('click', () => {
+    document.getElementById('newTreeCoords').value = '';
+    document.getElementById('newTreeName').value = '';
+    document.getElementById('newTreeCSV').value = '';
+    document.getElementById('newTreeAudio').value = '';
+    document.getElementById('createTreeModal').style.display = 'flex';
+  });
+  document.querySelectorAll('.close-modal').forEach(btn => {
+    btn.onclick = () => btn.closest('.modal').style.display = 'none';
+  });
+  document.getElementById('confirmCreateTree').addEventListener('click', async () => {
+    let name = document.getElementById('newTreeName').value;
+    let coordStr = document.getElementById('newTreeCoords').value;
+    if (!name || !coordStr) { showToast('请填写树名和位置'); return; }
+    let [lat, lng] = coordStr.split(',').map(Number);
+    let csvFile = document.getElementById('newTreeCSV').files[0];
+    let audioFilesList = Array.from(document.getElementById('newTreeAudio').files || []);
+    await createNewTree(name, lat, lng, csvFile, audioFilesList);
+    document.getElementById('createTreeModal').style.display = 'none';
+  });
+  document.getElementById('exportTreeBtn').addEventListener('click', () => {
+    let tree = getCurrentTree();
+    let exportData = {
+      name: tree.name,
+      lat: tree.lat, lng: tree.lng,
+      speciesSummary: tree.speciesSummary,
+      audioMap: Array.from(tree.audioMap.entries())
+    };
+    let dataStr = JSON.stringify(exportData);
+    let blob = new Blob([dataStr], {type: 'application/json'});
+    let url = URL.createObjectURL(blob);
+    let a = document.createElement('a');
+    a.href = url;
+    a.download = `${tree.name}.tree.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+  document.getElementById('importTreeFile').addEventListener('change', e => {
+    let file = e.target.files[0];
+    if (!file) return;
+    let reader = new FileReader();
+    reader.onload = ev => {
+      let data = JSON.parse(ev.target.result);
+      let newTree = {
+        id: 'tree_' + Date.now(),
+        name: data.name,
+        lat: data.lat, lng: data.lng,
+        x: width/2, y: height*0.65,
+        speciesSummary: data.speciesSummary,
+        audioMap: new Map(data.audioMap),
+        birdnetRecords: []
+      };
+      trees.push(newTree);
+      addMapMarker(newTree);
+      saveTreesToLocalStorage();
+      setCurrentTree(newTree.id);
+      showToast(`导入树：${data.name}`);
+    };
+    reader.readAsText(file);
+  });
+  // 关于模态框
+  document.getElementById('aboutBtn').addEventListener('click', () => {
+    document.getElementById('aboutModal').style.display = 'flex';
+  });
 }
 
 function showToast(msg) {
@@ -361,18 +546,4 @@ function showToast(msg) {
   toast.innerText = msg;
   root.appendChild(toast);
   setTimeout(() => toast.remove(), 2200);
-}
-
-function loadDemoData() {
-  birdnetRecords = [
-    { species_common: '黑领椋鸟', species_scientific: 'Gracupica nigricollis', confidence: 0.92 },
-    { species_common: '暗绿绣眼鸟', species_scientific: 'Zosterops simplex', confidence: 0.85 },
-    { species_common: '红耳鹎', species_scientific: 'Pycnonotus jocosus', confidence: 0.78 },
-    { species_common: '噪鹃', species_scientific: 'Eudynamys scolopaceus', confidence: 0.77 },
-    { species_common: '黄眉柳莺', species_scientific: 'Phylloscopus inornatus', confidence: 0.75 },
-    { species_common: '家麻雀', species_scientific: 'Passer domesticus', confidence: 0.71 },
-    { species_common: '白喉红臀鹎', species_scientific: 'Pycnonotus aurigaster', confidence: 0.53 }
-  ];
-  updateSpeciesSummary();
-  showToast('演示数据已加载 · 榕树声景');
 }
