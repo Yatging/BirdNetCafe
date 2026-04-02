@@ -171,7 +171,7 @@ body {
   box-shadow: var(--shadow-lg), inset 0 0 0 1px rgba(255,255,240,0.5);
   overflow: hidden;
   position: relative;
-  background-image: url('banyan.jpg');  /* 请将榕树图片命名为 banyan.jpg 放在根目录 */
+  background-image: url('banyan.png');  /* 请将榕树图片命名为 banyan.jpg 放在根目录 */
   background-size: cover;
   background-position: center 30%;
   transition: filter 0.3s;
