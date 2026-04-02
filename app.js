@@ -1,20 +1,17 @@
-/* 榕树声景 · 科普展项
-   - 拟真榕树（分形树干 + 气根 + 动态树冠）
-   - 叶片代表物种，映射置信度（大小/颜色）
-   - 悬停浮窗 + 自动播放鸟叫
-   - 数据导入：BirdNET CSV / AFCD 名录 / 音频文件
+/* 榕树声景 v2.0
+   视觉升级：背景图片 + 动态光晕，叶片保留，交互保留
 */
 
 let canvas, fft;
 let tree = { x: 0, y: 0, scale: 1.0 };
-let leaves = [];            // 交互叶片对象
+let leaves = [];
 let birdnetRecords = [];
-let afcdMap = new Map();    // 学名 -> { common, chinese, desc }
-let audioFiles = new Map(); // 文件名 -> p5.Sound 或 Audio 对象
+let afcdMap = new Map();
+let audioFiles = new Map();
 let audioEnabled = false;
 let hoverTimer = null;
 let currentPopup = null;
-let swingAngle = 0;         // 树冠摆动
+let glow = 0;          // 用于光效动画
 
 function setup() {
   const container = document.getElementById('canvas-container');
@@ -25,11 +22,13 @@ function setup() {
   colorMode(HSB, 360, 100, 100);
   fft = new p5.FFT(0.9, 1024);
 
+  // 树的位置（用于叶片布局）
   tree.x = width / 2;
   tree.y = height * 0.65;
-  createTree();
+
+  // 初始化交互
   bindUI();
-  loadDemoData();           // 演示数据
+  loadDemoData();
 }
 
 function windowResized() {
@@ -41,111 +40,49 @@ function windowResized() {
 }
 
 function draw() {
-  // 天空渐变背景
-  setGradient(0, 0, width, height, color(85, 40, 95), color(120, 20, 90));
-  // 地面
-  fill(120, 20, 85);
-  rect(0, height * 0.78, width, height * 0.22);
+  // 背景透明，让 CSS 背景图片透出
+  clear();
+  noStroke();
 
-  // 更新树冠摆动
-  swingAngle += 0.008;
-  let sway = sin(swingAngle) * 4;
+  // 绘制柔和的光晕（模拟树冠下的光斑）
+  glow = (glow + 0.01) % TWO_PI;
+  let rad = 200 + sin(glow) * 20;
+  for (let i = 0; i < 3; i++) {
+    fill(60, 15, 92, 5 - i * 1.5);
+    ellipse(tree.x, tree.y - 40, rad + i * 30, rad + i * 30);
+  }
 
-  // 绘制树（主干 + 气根）
-  push();
-  translate(tree.x, tree.y);
-  drawTrunk(sway);
-  drawRoots();
-  drawBranches(sway);
-  drawCanopy(sway);
-  pop();
+  // 绘制一个半透明的地面投影，增强真实感
+  fill(0, 0, 0, 10);
+  ellipse(tree.x, height - 20, 300, 50);
 
-  // 绘制叶片（需要浮空感）
+  // 绘制叶片
   for (let leaf of leaves) drawLeaf(leaf);
 }
 
-// ---- 树绘制（增强真实感）----
-function drawTrunk(sway) {
-  push();
-  rotate(radians(sway * 0.5));
-  noStroke();
-  for (let i = 0; i < 12; i++) {
-    let w = 70 - i * 2;
-    let h = 30 - i;
-    fill(28, 60, 22 - i * 1.5, 90);
-    ellipse(0, -150 + i * 18, w, h);
-  }
-  // 树皮纹理
-  stroke(28, 60, 18);
-  strokeWeight(1.5);
-  for (let i = 0; i < 40; i++) {
-    let y = -140 + i * 6;
-    line(-25 + random(-3, 3), y, 25 + random(-3, 3), y);
-  }
-  pop();
-}
-
-function drawRoots() {
-  fill(28, 55, 20);
-  for (let i = -2; i <= 2; i++) {
-    ellipse(i * 28, 60, 35, 15);
-  }
-}
-
-function drawBranches(sway) {
-  stroke(28, 55, 20);
-  strokeWeight(6);
-  noFill();
-  let angles = [-0.6, -0.2, 0.2, 0.6];
-  for (let a of angles) {
-    push();
-    rotate(radians(sway * 0.3));
-    rotate(a);
-    bezier(0, -120, 40, -180, 80, -210, 60 + sway * 0.5, -280);
-    bezier(0, -120, -40, -180, -80, -210, -60 - sway * 0.5, -280);
-    pop();
-  }
-}
-
-function drawCanopy(sway) {
-  // 动态树冠（多层级椭圆）
-  push();
-  rotate(radians(sway * 0.6));
-  for (let layer = 0; layer < 5; layer++) {
-    let offsetY = -120 + layer * 30;
-    let size = 160 - layer * 10;
-    let alpha = 65 - layer * 8;
-    fill(100, 50, 55, alpha);
-    ellipse(0, offsetY, size, size * 0.85);
-  }
-  pop();
-}
-
-// ---- 叶片绘制 ----
+// 叶片绘制（简洁抽象，依然优雅）
 function drawLeaf(lf) {
-  // 动态漂浮
-  lf.x = lf.baseX + sin(frameCount * 0.02 + lf.idx) * 3;
-  lf.y = lf.baseY + cos(frameCount * 0.025 + lf.idx) * 2.5;
+  lf.x = lf.baseX + sin(frameCount * 0.02 + lf.idx) * 2.5;
+  lf.y = lf.baseY + cos(frameCount * 0.025 + lf.idx) * 2;
 
   push();
   translate(lf.x, lf.y);
   rotate(sin(frameCount * 0.03 + lf.idx) * 0.2);
-  // 根据置信度映射大小和颜色
-  let size = map(lf.confidence, 0, 1, 12, 24);
-  let hue = map(lf.confidence, 0, 1, 80, 140); // 绿 → 翠绿
-  let sat = map(lf.confidence, 0, 1, 40, 80);
-  let bright = map(lf.confidence, 0, 1, 65, 88);
+  let size = map(lf.confidence, 0, 1, 14, 26);
+  let hue = map(lf.confidence, 0, 1, 80, 130);
+  let sat = map(lf.confidence, 0, 1, 50, 85);
+  let bright = map(lf.confidence, 0, 1, 70, 92);
 
   if (lf.hover) {
-    // 悬停高亮
     fill(hue, sat, bright + 10);
-    stroke(0, 0, 0, 30);
-    strokeWeight(1.5);
+    stroke(0, 0, 0, 40);
+    strokeWeight(1.2);
   } else {
     noStroke();
-    fill(hue, sat, bright, 95);
+    fill(hue, sat, bright, 92);
   }
-  // 叶片形状
+
+  // 水滴形叶片
   beginShape();
   vertex(-size * 0.4, 0);
   bezierVertex(-size * 0.6, -size * 0.55, size * 0.6, -size * 0.55, size * 0.4, 0);
@@ -154,7 +91,46 @@ function drawLeaf(lf) {
   pop();
 }
 
-// ---- 叶片布局 ----
+// ----- 数据与叶片布局 -----
+function parseCSV(text) {
+  const lines = text.split(/\r?\n/).filter(l => l.trim());
+  if (!lines.length) return [];
+  const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+  let rows = [];
+  for (let i = 1; i < lines.length; i++) {
+    let vals = [];
+    let inQuote = false;
+    let cur = '';
+    for (let ch of lines[i]) {
+      if (ch === '"') { inQuote = !inQuote; continue; }
+      if (ch === ',' && !inQuote) { vals.push(cur); cur = ''; continue; }
+      cur += ch;
+    }
+    vals.push(cur);
+    if (vals.length !== headers.length) continue;
+    let obj = {};
+    for (let j = 0; j < headers.length; j++) obj[headers[j]] = vals[j].trim();
+    rows.push(obj);
+  }
+  return rows;
+}
+
+function updateSpeciesSummary() {
+  tree.speciesSummary = {};
+  for (let rec of birdnetRecords) {
+    let species = rec.species_common || rec.Species || rec.scientific || 'Unknown';
+    let conf = parseFloat(rec.confidence || rec.Confidence || 0);
+    if (isNaN(conf)) conf = 0;
+    if (!tree.speciesSummary[species]) {
+      tree.speciesSummary[species] = { count: 0, sumConf: 0, records: [] };
+    }
+    tree.speciesSummary[species].count++;
+    tree.speciesSummary[species].sumConf += conf;
+    tree.speciesSummary[species].records.push(rec);
+  }
+  layoutLeaves();
+}
+
 function layoutLeaves() {
   leaves = [];
   let speciesList = Object.keys(tree.speciesSummary || {});
@@ -197,52 +173,12 @@ function repositionLeaves() {
   }
 }
 
-// ---- 数据解析与汇总 ----
-function parseCSV(text) {
-  const lines = text.split(/\r?\n/).filter(l => l.trim());
-  if (!lines.length) return [];
-  const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
-  let rows = [];
-  for (let i = 1; i < lines.length; i++) {
-    let vals = [];
-    let inQuote = false;
-    let cur = '';
-    for (let ch of lines[i]) {
-      if (ch === '"') { inQuote = !inQuote; continue; }
-      if (ch === ',' && !inQuote) { vals.push(cur); cur = ''; continue; }
-      cur += ch;
-    }
-    vals.push(cur);
-    if (vals.length !== headers.length) continue;
-    let obj = {};
-    for (let j = 0; j < headers.length; j++) obj[headers[j]] = vals[j].trim();
-    rows.push(obj);
-  }
-  return rows;
-}
-
-function updateSpeciesSummary() {
-  tree.speciesSummary = {};
-  for (let rec of birdnetRecords) {
-    let species = rec.species_common || rec.Species || rec.scientific || 'Unknown';
-    let conf = parseFloat(rec.confidence || rec.Confidence || 0);
-    if (isNaN(conf)) conf = 0;
-    if (!tree.speciesSummary[species]) {
-      tree.speciesSummary[species] = { count: 0, sumConf: 0, records: [] };
-    }
-    tree.speciesSummary[species].count++;
-    tree.speciesSummary[species].sumConf += conf;
-    tree.speciesSummary[species].records.push(rec);
-  }
-  layoutLeaves();
-}
-
-// ---- 交互与浮窗 ----
+// ----- 交互逻辑（保持不变）-----
 function checkLeafHover() {
   let hit = null;
   for (let lf of leaves) {
     let d = dist(mouseX, mouseY, lf.x, lf.y);
-    let size = map(lf.confidence, 0, 1, 12, 24);
+    let size = map(lf.confidence, 0, 1, 14, 26);
     if (d < size * 0.7) hit = lf;
     lf.hover = (lf === hit);
   }
@@ -262,8 +198,7 @@ function showPopup(leaf) {
   popup.className = 'leaf-popup';
   popup.id = 'popup-current';
 
-  // 获取 AFCD 信息
-  let info = afcdMap.get(leaf.species) || { chinese: '', desc: '本地常见留鸟，鸣声清脆。' };
+  let info = afcdMap.get(leaf.species) || { chinese: '', desc: '香港常见鸟类，鸣声独特。' };
   let commonName = leaf.species;
   let sciName = leaf.records[0]?.species_scientific || '未知学名';
 
@@ -282,7 +217,6 @@ function showPopup(leaf) {
     </div>
   `;
 
-  // 定位
   const rect = canvas.elt.getBoundingClientRect();
   let left = rect.left + leaf.x - 150;
   let top = rect.top + leaf.y - 140;
@@ -294,7 +228,7 @@ function showPopup(leaf) {
   root.appendChild(popup);
   currentPopup = popup;
 
-  // 绑定音频播放
+  // 音频匹配
   let matchedAudio = null;
   for (let [name, aud] of audioFiles.entries()) {
     if (name.toLowerCase().includes(leaf.species.toLowerCase().split(' ')[0])) {
@@ -322,7 +256,6 @@ function showPopup(leaf) {
     stopBtn.onclick = () => {};
   }
 
-  // 自动播放（如果音频已启用）
   if (audioEnabled && matchedAudio) {
     if (audioEl) audioEl.play().catch(e=>console.log);
     else if (matchedAudio.play) matchedAudio.play();
@@ -337,14 +270,13 @@ function closePopup() {
   currentPopup = null;
   if (hoverTimer) clearTimeout(hoverTimer);
   for (let l of leaves) l.playing = false;
-  // 停止所有音频
   for (let [_, aud] of audioFiles) {
     if (aud.stop) aud.stop();
     else if (aud.pause) aud.pause();
   }
 }
 
-// ---- UI 绑定与辅助 ----
+// ----- UI 绑定与辅助函数 -----
 function bindUI() {
   document.getElementById('birdnetFile').addEventListener('change', e => {
     let f = e.target.files[0];
@@ -389,7 +321,6 @@ function bindUI() {
   });
 
   document.getElementById('enableAudioBtn').addEventListener('click', () => {
-    // 触发用户手势激活 AudioContext
     if (getAudioContext().state !== 'running') {
       getAudioContext().resume().then(() => {
         audioEnabled = true;
@@ -413,6 +344,14 @@ function bindUI() {
   });
 
   canvas.mouseMoved(checkLeafHover);
+
+  // 关于项目模态框
+  const modal = document.getElementById('aboutModal');
+  const aboutBtn = document.getElementById('aboutBtn');
+  const closeModal = document.querySelector('.close-modal');
+  aboutBtn.onclick = () => modal.style.display = 'flex';
+  closeModal.onclick = () => modal.style.display = 'none';
+  window.onclick = (e) => { if (e.target === modal) modal.style.display = 'none'; };
 }
 
 function showToast(msg) {
@@ -422,15 +361,6 @@ function showToast(msg) {
   toast.innerText = msg;
   root.appendChild(toast);
   setTimeout(() => toast.remove(), 2200);
-}
-
-function setGradient(x, y, w, h, c1, c2) {
-  for (let i = y; i <= y + h; i++) {
-    let inter = map(i, y, y + h, 0, 1);
-    let col = lerpColor(color(c1), color(c2), inter);
-    stroke(col);
-    line(x, i, x + w, i);
-  }
 }
 
 function loadDemoData() {
@@ -444,5 +374,5 @@ function loadDemoData() {
     { species_common: '白喉红臀鹎', species_scientific: 'Pycnonotus aurigaster', confidence: 0.53 }
   ];
   updateSpeciesSummary();
-  showToast('演示数据已加载（榕树·七种鸟鸣）');
+  showToast('演示数据已加载 · 榕树声景');
 }

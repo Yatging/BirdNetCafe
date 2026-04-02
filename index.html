@@ -1,45 +1,73 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="zh-HK">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>榕树声景 · 科普展项</title>
-  <link rel="stylesheet" href="./style.css" type="text/css" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>BirdNetCafe 翎英</title>
+  <link rel="stylesheet" href="style.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/addons/p5.sound.min.js"></script>
 </head>
 <body>
-  <div id="app">
-    <header>
-      <div class="brand">
-        <h1>榕树声景</h1>
-        <p>探索树叶下的鸟鸣 · 科学公民项目</p>
+  <div class="app">
+    <!-- 顶部导航栏 -->
+    <header class="glass-nav">
+      <div class="logo">
+        <span class="icon">🌳</span>
+        <span class="title">BirdNetCafe 翎英</span>
+        <span class="badge">科普展项</span>
       </div>
-      <div class="toolbar">
-        <label class="btn secondary">
-          📁 导入 BirdNET
-          <input type="file" id="birdnetFile" accept=".csv" />
+      <div class="controls">
+        <button id="aboutBtn" class="btn-icon">📖 关于项目</button>
+        <label class="btn-icon">
+          📁 BirdNET CSV
+          <input type="file" id="birdnetFile" accept=".csv" hidden>
         </label>
-        <label class="btn secondary">
-          📁 导入 AFCD 名录
-          <input type="file" id="afcdFile" accept=".csv" />
+        <label class="btn-icon">
+          📋 AFCD 名录
+          <input type="file" id="afcdFile" accept=".csv" hidden>
         </label>
-        <label class="btn secondary">
+        <label class="btn-icon">
           🎵 上传音频
-          <input type="file" id="audioFile" accept="audio/*" multiple />
+          <input type="file" id="audioFile" accept="audio/*" multiple hidden>
         </label>
-        <button id="enableAudioBtn" class="btn primary">🔊 启用音频</button>
-        <button id="resetBtn" class="btn secondary">🔄 重置</button>
+        <button id="enableAudioBtn" class="btn-primary">🔊 启用音频</button>
+        <button id="resetBtn" class="btn-icon">🔄 重置</button>
       </div>
     </header>
 
+    <!-- 主画布区域 -->
     <main>
       <div id="canvas-container"></div>
     </main>
 
-    <div id="popup-root"></div>
+    <!-- 项目介绍模态框 -->
+    <div id="aboutModal" class="modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2>🌿 BirdNetCafe 翎英</h2>
+          <button class="close-modal">&times;</button>
+        </div>
+        <div class="modal-body">
+          <p><strong>项目简介</strong><br>
+          将城市生态监测中的鸟类声纹数据，转化为一棵“会唱歌的榕树”。每片叶子代表一个鸟类物种，悬停叶片即可聆听其鸣声，查看科学记录。通过艺术化的交互，拉近公众与生物多样性保护的距离。</p>
+          <p><strong>技术实现</strong><br>
+          • BirdNET 声纹识别数据 → 叶片生成<br>
+          • AFCD 香港鸟类名录 → 物种科普文本<br>
+          • 用户上传音频 → 交互播放<br>
+          • 基于 p5.js 的实时视觉反馈与悬停交互</p>
+          <p><strong>致谢</strong><br>
+          数据来源：BirdNET 社区、香港渔农自然护理署（AFCD）<br>
+          设计支持：自然之声实验室</p>
+          <p class="small">版本 2.0 · 科普预览版</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 全局提示容器 -->
     <div id="toast-root"></div>
+    <div id="popup-root"></div>
   </div>
-  <script src="./app.js"></script>
+  <script src="app.js"></script>
 </body>
 </html>
