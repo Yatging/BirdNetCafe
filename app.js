@@ -1,19 +1,15 @@
-/* BirdNetCafe · 翎英 (AvianLinked)
-   完整版：预置7种香港鸟类、主动飞鸟动画、多树管理、localStorage、地图、浮窗百科、音频播放
-*/
-
+/* BirdNetCafe · 翎英 (AvianLinked) - 修复预置树不显示问题 */
 let canvas;
-let trees = [];               // 所有树对象
+let trees = [];
 let currentTreeId = null;
-let leaves = [];             // 当前树的叶片
-let afcdMap = new Map();     // 物种科普信息（可后续导入）
-let audioFiles = new Map();  // 全局音频库（文件名 → p5.Sound/URL）
+let leaves = [];
+let afcdMap = new Map();
+let audioFiles = new Map();
 let audioEnabled = false;
 let hoverTimer = null;
 let currentPopup = null;
 let map = null;
 
-// ---------- 预置鸟类数据 ----------
 const PRESET_SPECIES = [
   { common: "黑领椋鸟", scientific: "Gracupica nigricollis", confidence: 0.94, audioFile: "audio/黑领椋鸟.mp3", img: "image/黑领椋鸟.png" },
   { common: "暗绿绣眼鸟", scientific: "Zosterops simplex", confidence: 0.85, audioFile: "audio/暗绿绣眼鸟.mp3", img: "image/暗绿绣眼鸟.png" },
@@ -25,12 +21,9 @@ const PRESET_SPECIES = [
 ];
 const DEFAULT_BIRD_IMG = "https://cdn.pixabay.com/photo/2013/07/25/13/01/bird-167146_1280.png";
 
-// 飞鸟动画队列
 let birdAnimationQueue = [];
-let isAnimating = false;
 let flyingBirdDivs = [];
 
-// ---------- p5.js 初始化 ----------
 function setup() {
   const container = document.getElementById('canvas-container');
   const w = container.clientWidth || 1000;
@@ -41,9 +34,14 @@ function setup() {
 
   initMap();
   loadTreesFromLocalStorage();
-  if (trees.length === 0) {
+
+  // 如果 trees 为空，或者第一棵树没有物种数据，强制重建预置树
+  if (trees.length === 0 || !trees[0].speciesSummary || Object.keys(trees[0].speciesSummary).length === 0) {
+    console.log("No valid tree found, creating preset tree");
+    localStorage.removeItem('birdnetcafe_trees'); // 清除旧缓存
     createPresetTree();
   }
+
   // 确保当前树有坐标
   let firstTree = trees[0];
   if (firstTree) {
@@ -54,11 +52,11 @@ function setup() {
   updateTreeListUI();
   bindUI();
 
-  // 强制刷新叶片（再次确保）
+  // 强制刷新叶片
   updateCurrentTreeLeaves();
-  console.log("Leaves count after setup:", leaves.length); // 调试：应输出7
+  console.log("Initial leaves count:", leaves.length);
 
-  // 延迟启动飞鸟动画，确保叶片已布局
+  // 延迟启动飞鸟动画
   setTimeout(() => startBirdFlyAnimation(), 800);
 }
 
@@ -76,18 +74,15 @@ function windowResized() {
 function draw() {
   clear();
   noStroke();
-  // 光晕效果
   let glow = (frameCount * 0.02) % TWO_PI;
   let rad = 200 + sin(glow) * 20;
   fill(60, 15, 92, 8);
   ellipse(width/2, height*0.65 - 40, rad, rad);
   fill(0,0,0,10);
   ellipse(width/2, height - 20, 300, 50);
-  // 绘制叶片
   for (let leaf of leaves) drawLeaf(leaf);
 }
 
-// ---------- 树与叶片管理 ----------
 function getCurrentTree() {
   return trees.find(t => t.id === currentTreeId);
 }
@@ -101,7 +96,7 @@ function createPresetTree() {
     x: width/2,
     y: height*0.65,
     speciesSummary: {},
-    audioMap: new Map(),   // 物种 → 音频URL或p5对象
+    audioMap: new Map(),
     birdnetRecords: []
   };
   let summary = {};
@@ -111,12 +106,10 @@ function createPresetTree() {
       sumConf: sp.confidence,
       records: [{ species_common: sp.common, species_scientific: sp.scientific, confidence: sp.confidence }]
     };
-    if (sp.audioFile) {
-      tree.audioMap.set(sp.common, sp.audioFile);
-    }
+    if (sp.audioFile) tree.audioMap.set(sp.common, sp.audioFile);
   }
   tree.speciesSummary = summary;
-  trees.push(tree);
+  trees = [tree]; // 直接替换，避免残留
   saveTreesToLocalStorage();
   console.log("Preset tree created with species:", Object.keys(summary));
 }
@@ -124,16 +117,26 @@ function createPresetTree() {
 function updateCurrentTreeLeaves() {
   let treeObj = getCurrentTree();
   if (!treeObj) {
-    console.warn("No current tree found");
+    console.error("No current tree");
     return;
   }
   leaves = [];
   let speciesList = Object.keys(treeObj.speciesSummary || {});
   if (speciesList.length === 0) {
-    console.warn("No species in current tree");
-    return;
+    console.warn("No species in current tree, using PRESET_SPECIES as fallback");
+    speciesList = PRESET_SPECIES.map(s => s.common);
+    // 临时构建一个虚拟的 speciesSummary 用于叶片生成
+    for (let sp of speciesList) {
+      if (!treeObj.speciesSummary[sp]) {
+        let preset = PRESET_SPECIES.find(s => s.common === sp);
+        treeObj.speciesSummary[sp] = {
+          count: 1,
+          sumConf: preset ? preset.confidence : 0.5,
+          records: []
+        };
+      }
+    }
   }
-  console.log("Updating leaves for species:", speciesList);
 
   let angleStep = PI / (speciesList.length + 1);
   let startAngle = -PI * 0.6;
@@ -152,7 +155,7 @@ function updateCurrentTreeLeaves() {
         baseX, baseY, x: baseX, y: baseY,
         confidence: avgConf,
         species: sp,
-        records: info.records,
+        records: info.records || [],
         avgConfidence: avgConf,
         count: info.count,
         hover: false,
@@ -165,6 +168,47 @@ function updateCurrentTreeLeaves() {
   console.log("Generated leaves count:", leaves.length);
 }
 
+function repositionLeaves() {
+  let treeObj = getCurrentTree();
+  if (!treeObj) return;
+  for (let lf of leaves) {
+    let angle = atan2(lf.baseY - treeObj.y, lf.baseX - treeObj.x);
+    let radius = dist(treeObj.x, treeObj.y, lf.baseX, lf.baseY);
+    lf.baseX = treeObj.x + radius * cos(angle);
+    lf.baseY = treeObj.y + radius * sin(angle);
+  }
+}
+
+function drawLeaf(lf) {
+  lf.x = lf.baseX + sin(frameCount * 0.02 + lf.idx) * 2.5;
+  lf.y = lf.baseY + cos(frameCount * 0.025 + lf.idx) * 2;
+
+  push();
+  translate(lf.x, lf.y);
+  rotate(sin(frameCount * 0.03 + lf.idx) * 0.2);
+  let size = map(lf.confidence, 0, 1, 14, 26);
+  let hue = map(lf.confidence, 0, 1, 80, 130);
+  let sat = map(lf.confidence, 0, 1, 50, 85);
+  let bright = map(lf.confidence, 0, 1, 70, 92);
+  if (lf.hover) {
+    fill(hue, sat, bright + 10);
+    stroke(0, 0, 0, 40);
+    strokeWeight(1.2);
+  } else {
+    noStroke();
+    fill(hue, sat, bright, 92);
+  }
+  if (lf.highlight) {
+    fill(hue, sat, 95, 80);
+    ellipse(0, 0, size*1.4, size*0.9);
+  }
+  beginShape();
+  vertex(-size * 0.4, 0);
+  bezierVertex(-size * 0.6, -size * 0.55, size * 0.6, -size * 0.55, size * 0.4, 0);
+  bezierVertex(size * 0.6, size * 0.55, -size * 0.6, size * 0.55, -size * 0.4, 0);
+  endShape(CLOSE);
+  pop();
+}
 function repositionLeaves() {
   let treeObj = getCurrentTree();
   if (!treeObj) return;
