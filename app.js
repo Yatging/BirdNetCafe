@@ -1,5 +1,5 @@
 /* BirdNetCafe · 翎英 (AvianLinked)
-   原生 DOM 稳定版：修复坐标系漂移、优化鸟类分散布局、逐一慢速出现动画
+   原生 DOM 稳定版：真实比例鸟类大小、逐一慢速出现动画
 */
 
 let trees = [];
@@ -10,15 +10,15 @@ let audioEnabled = false;
 let currentPopup = null;
 let map = null;
 
-// 预置鸟类数据
+// 预置鸟类数据 (【新增】realSizeCm: 真实体长，单位厘米，作为日后资料扩展接口)
 const PRESET_SPECIES = [
-  { common: "黑领椋鸟", scientific: "Gracupica nigricollis", confidence: 0.94, audioFile: "audio/黑领椋鸟.mp3", img: "images/黑领椋鸟.png" },
-  { common: "暗绿绣眼鸟", scientific: "Zosterops simplex", confidence: 0.85, audioFile: "audio/暗绿绣眼鸟.mp3", img: "images/暗绿绣眼鸟.png" },
-  { common: "红耳鹎", scientific: "Pycnonotus jocosus", confidence: 0.78, audioFile: "audio/红耳鹎.mp3", img: "images/红耳鹎.png" },
-  { common: "噪鹃", scientific: "Eudynamys scolopaceus", confidence: 0.77, audioFile: "audio/噪鹃.mp3", img: "images/噪鹃.png" },
-  { common: "黄眉柳莺", scientific: "Phylloscopus inornatus", confidence: 0.75, audioFile: "audio/黄眉柳莺.mp3", img: "images/黄眉柳莺.png" },
-  { common: "家麻雀", scientific: "Passer domesticus", confidence: 0.71, audioFile: "audio/家麻雀.mp3", img: "images/家麻雀.png" },
-  { common: "白喉红臀鹎", scientific: "Pycnonotus aurigaster", confidence: 0.53, audioFile: "audio/白喉红臀鹎.mp3", img: "images/白喉红臀鹎.png" }
+  { common: "黑领椋鸟", scientific: "Gracupica nigricollis", confidence: 0.94, audioFile: "audio/黑领椋鸟.mp3", img: "images/黑领椋鸟.png", realSizeCm: 28 },
+  { common: "暗绿绣眼鸟", scientific: "Zosterops simplex", confidence: 0.85, audioFile: "audio/暗绿绣眼鸟.mp3", img: "images/暗绿绣眼鸟.png", realSizeCm: 11 },
+  { common: "红耳鹎", scientific: "Pycnonotus jocosus", confidence: 0.78, audioFile: "audio/红耳鹎.mp3", img: "images/红耳鹎.png", realSizeCm: 20 },
+  { common: "噪鹃", scientific: "Eudynamys scolopaceus", confidence: 0.77, audioFile: "audio/噪鹃.mp3", img: "images/噪鹃.png", realSizeCm: 43 }, // 噪鹃体型很大
+  { common: "黄眉柳莺", scientific: "Phylloscopus inornatus", confidence: 0.75, audioFile: "audio/黄眉柳莺.mp3", img: "images/黄眉柳莺.png", realSizeCm: 10 }, // 柳莺很小
+  { common: "家麻雀", scientific: "Passer domesticus", confidence: 0.71, audioFile: "audio/家麻雀.mp3", img: "images/家麻雀.png", realSizeCm: 15 },
+  { common: "白喉红臀鹎", scientific: "Pycnonotus aurigaster", confidence: 0.53, audioFile: "audio/白喉红臀鹎.mp3", img: "images/白喉红臀鹎.png", realSizeCm: 20 }
 ];
 
 const DEFAULT_BIRD_IMG = "images/黑领椋鸟.png";
@@ -27,15 +27,24 @@ const DEFAULT_BIRD_IMG = "images/黑领椋鸟.png";
 function random(min, max) { return Math.random() * (max - min) + min; }
 const PI = Math.PI;
 
-// ---------- 【新增核心】优化鸟类分布的算法 ----------
+// ---------- 【新增核心】计算鸟类 UI 大小 ----------
+// 接口预留：根据真实体长(cm)转换为屏幕像素大小。没有数据的随机生成一个适中大小。
+function calculateBirdSize(realSizeCm) {
+  if (!realSizeCm) {
+    // 如果导入了 CSV 里的未知鸟类，给一个 50px 到 80px 的随机大小
+    return random(50, 80);
+  }
+  // 比例公式：基础 35px + 每厘米 * 1.8px
+  // 效果：10cm的柳莺约53px；43cm的噪鹃约112px
+  return 35 + (realSizeCm * 1.8);
+}
+
+// 分布坐标生成算法
 function generateBirdOffset() {
-  // 角度从 -162度 (偏左下) 到 -18度 (偏右下)，形成一个丰满的树冠半圆
   let angle = random(-PI * 0.9, -PI * 0.1); 
-  // 半径大幅增加到 120~380，让鸟散布在整个大榕树背景上
   let radius = random(120, 380); 
-  
   let dx = radius * Math.cos(angle);
-  let dy = radius * Math.sin(angle) - random(10, 60); // 整体稍微往上提一点
+  let dy = radius * Math.sin(angle) - random(10, 60);
   return { dx, dy };
 }
 
@@ -85,7 +94,6 @@ function renderBirdsDOM() {
   tree.y = h * 0.65;
 
   birds.forEach((bird, index) => {
-    // 容错：如果没有坐标，重新生成大范围坐标
     if (isNaN(bird.dx) || isNaN(bird.dy)) {
       let offset = generateBirdOffset();
       bird.dx = offset.dx;
@@ -100,7 +108,12 @@ function renderBirdsDOM() {
     node.style.left = bird.x + 'px';
     node.style.top = bird.y + 'px';
     
-    // 【修复出现速度】：将原来的 0.15s 改为 0.8s。上一只快变大了，下一只才开始出现
+    // 【应用动态大小】：使用鸟自带的 size 属性，兼容旧数据
+    let finalSize = bird.size || calculateBirdSize(null);
+    node.style.width = finalSize + 'px';
+    node.style.height = finalSize + 'px';
+
+    // 逐一飞出动画：延迟 0.8s * 顺序
     node.style.animationDelay = `${index * 0.8}s`;
 
     const img = document.createElement('img');
@@ -139,9 +152,7 @@ function injectCSS() {
   style.innerHTML = `
     .bird-node {
       position: absolute;
-      width: 44px;
-      height: 44px;
-      /* 初始状态：缩小为0，完全透明 */
+      /* 移除了固定的 width 和 height，改由 JS 动态注入计算出的真实比例 */
       transform: translate(-50%, -50%) scale(0);
       opacity: 0;
       border-radius: 50%;
@@ -149,12 +160,11 @@ function injectCSS() {
       box-shadow: 0 4px 10px rgba(0,0,0,0.3);
       transition: box-shadow 0.2s, z-index 0.2s;
       z-index: 10;
-      /* 动画持续 1秒，采用弹性贝塞尔曲线，最终停留在 forwards 状态 */
       animation: birdPopIn 1s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
       background-color: rgba(255, 255, 255, 0.2);
     }
     .bird-node:hover {
-      box-shadow: 0 0 0 3px #fff, 0 6px 15px rgba(0,0,0,0.4);
+      box-shadow: 0 0 0 4px rgba(255,255,255,0.8), 0 8px 20px rgba(0,0,0,0.5);
       z-index: 20;
     }
     .bird-node img {
@@ -174,7 +184,7 @@ function injectCSS() {
       border-radius: 50%;
       background: linear-gradient(135deg, #4CAF50, #2E7D32);
       color: white;
-      font-size: 12px;
+      font-size: 14px;
       font-weight: bold;
     }
     @keyframes birdPopIn {
@@ -294,11 +304,12 @@ function createPresetTree() {
 
   let birdList = [];
   for (let sp of PRESET_SPECIES) {
-    let offset = generateBirdOffset(); // 使用新算法打散坐标
+    let offset = generateBirdOffset();
     birdList.push({
       id: sp.common, species: sp.common, scientific: sp.scientific,
       confidence: sp.confidence, imgPath: sp.img, audioPath: sp.audioFile,
-      dx: offset.dx, dy: offset.dy
+      dx: offset.dx, dy: offset.dy,
+      size: calculateBirdSize(sp.realSizeCm) // 生成大小
     });
     if (sp.audioFile) tree.audioMap.set(sp.common, sp.audioFile);
   }
@@ -322,14 +333,15 @@ function updateCurrentTreeBirds() {
     let avgConf = info ? info.sumConf / info.count : 0.5;
     let preset = PRESET_SPECIES.find(s => s.common === spName);
     
-    let offset = generateBirdOffset(); // 使用新算法打散坐标
+    let offset = generateBirdOffset(); 
     
     newBirds.push({
       id: spName, species: spName,
       scientific: preset ? preset.scientific : '未知', confidence: avgConf,
       imgPath: preset ? preset.img : DEFAULT_BIRD_IMG,
       audioPath: preset ? preset.audioFile : null,
-      dx: offset.dx, dy: offset.dy
+      dx: offset.dx, dy: offset.dy,
+      size: calculateBirdSize(preset ? preset.realSizeCm : null) // 生成大小
     });
     if (preset && preset.audioFile) treeObj.audioMap.set(spName, preset.audioFile);
   }
@@ -468,7 +480,8 @@ async function createNewTree(name, lat, lng, csvFile, audioFilesList) {
       birdList.push({
         id: sp.common, species: sp.common, scientific: sp.scientific, confidence: sp.confidence,
         imgPath: sp.img, audioPath: sp.audioFile,
-        dx: offset.dx, dy: offset.dy
+        dx: offset.dx, dy: offset.dy,
+        size: calculateBirdSize(sp.realSizeCm) // 生成大小
       });
       if (sp.audioFile) tree.audioMap.set(sp.common, sp.audioFile);
     }
