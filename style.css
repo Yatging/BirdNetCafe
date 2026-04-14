@@ -18,12 +18,12 @@
 
 body {
   background: var(--bg-grain);
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, sans-serif;
+  /* 【修改】增加了标准的中文字体族，确保所有设备上汉字显示统一、无锯齿 */
+  font-family: 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', 'Segoe UI', Roboto, 'Helvetica Neue', Helvetica, sans-serif;
   color: var(--text-dark);
   line-height: 1.4;
   overflow-x: hidden;
 }
-
 /* 毛玻璃导航栏 */
 .glass-nav {
   position: sticky;
@@ -178,18 +178,19 @@ body {
 }
 
 /* 浮窗 */
+/* 浮窗：改为明亮主题 */
 .leaf-popup {
   position: fixed;
-  background: rgba(30, 30, 25, 0.85);
+  background: rgba(255, 255, 253, 0.95); /* 【修改】改为带有毛玻璃效果的暖白色 */
   backdrop-filter: blur(16px);
   border-radius: 28px;
   padding: 1rem 1.2rem;
   min-width: 260px;
   max-width: 320px;
-  color: white;
+  color: var(--text-dark); /* 【修改】全局深色文字 */
   font-size: 0.85rem;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(0, 0, 0, 0.08); /* 【修改】边框改为浅灰色 */
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.15);
   z-index: 1000;
   transition: opacity 0.2s;
   pointer-events: auto;
@@ -212,7 +213,7 @@ body {
   display: flex;
   gap: 0.8rem;
   font-size: 0.75rem;
-  border-top: 1px solid rgba(255,255,255,0.2);
+  border-top: 1px solid rgba(0, 0, 0, 0.08); /* 【修改】分割线改为浅灰色 */
   padding-top: 0.6rem;
   margin-bottom: 0.8rem;
 }
@@ -229,17 +230,20 @@ body {
   justify-content: flex-end;
 }
 
+/* 按钮的背景和悬停效果也相应改为适配浅色底的样式 */
 .leaf-popup button, .leaf-popup a {
-  background: rgba(255,255,255,0.2);
+  background: rgba(0, 0, 0, 0.05); 
   border: none;
   border-radius: 40px;
   padding: 0.3rem 0.8rem;
-  color: white;
+  color: var(--text-dark);
   cursor: pointer;
   text-decoration: none;
   font-size: 0.75rem;
   transition: 0.1s;
 }
+
+
 
 .leaf-popup button:hover, .leaf-popup a:hover {
   background: rgba(255,255,255,0.35);
