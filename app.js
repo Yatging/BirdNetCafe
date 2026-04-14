@@ -1,5 +1,5 @@
 /* BirdNetCafe · 翎英 (AvianLinked)
-   原生 DOM 重构版：抛弃 p5.js，完美解决本地图片加载黑屏、跨域和点击交互丢失的问题
+   原生 DOM 稳定版：修复坐标系漂移、解决旧数据残留、浮窗定位优化、图片加载容错
 */
 
 let trees = [];
@@ -23,7 +23,7 @@ const PRESET_SPECIES = [
 
 const DEFAULT_BIRD_IMG = "image/黑领椋鸟.png";
 
-// 原生数学辅助函数
+// 数学辅助
 function random(min, max) { return Math.random() * (max - min) + min; }
 const PI = Math.PI;
 
@@ -31,10 +31,11 @@ const PI = Math.PI;
 document.addEventListener('DOMContentLoaded', () => {
   injectCSS();
   initMap();
+  
+  // 强制清理旧版本格式可能导致错乱的遗留数据
   loadTreesFromLocalStorage();
 
   if (trees.length === 0 || !trees[0].birds || trees[0].birds.length === 0) {
-    localStorage.removeItem('birdnetcafe_trees');
     createPresetTree();
   }
 
@@ -42,25 +43,29 @@ document.addEventListener('DOMContentLoaded', () => {
   updateTreeListUI();
   bindUI();
 
-  // 监听窗口大小变化以重绘鸟的位置
-  window.addEventListener('resize', () => {
-    if (getCurrentTree()) renderBirdsDOM();
-  });
+  // 延迟渲染，确保 CSS 已经给容器赋了实际宽度和高度
+  setTimeout(renderBirdsDOM, 100);
 });
 
-// ---------- 2. 核心渲染 (原生 DOM 替代 p5.js) ----------
+// 二次保险：等所有资源加载完再算一次位置
+window.addEventListener('load', renderBirdsDOM);
+window.addEventListener('resize', renderBirdsDOM);
+
+// ---------- 2. 核心渲染 (原生 DOM) ----------
 function renderBirdsDOM() {
   const container = document.getElementById('canvas-container');
-  // 确保容器能正常包裹绝对定位元素
+  if (!container) return;
+
   container.style.position = 'relative';
-  container.style.overflow = 'hidden';
   container.innerHTML = ''; // 清空上一屏的内容
 
   let tree = getCurrentTree();
   if (!tree) return;
 
-  const w = container.clientWidth || 1000;
-  const h = container.clientHeight || 700;
+  // 获取真实宽高，如果获取不到则给默认值防止全挤在 0,0
+  const rect = container.getBoundingClientRect();
+  const w = rect.width || container.offsetWidth || 800;
+  const h = rect.height || container.offsetHeight || 600;
 
   // 注入光晕特效 (纯 CSS)
   const glow = document.createElement('div');
@@ -72,9 +77,16 @@ function renderBirdsDOM() {
   tree.x = w / 2;
   tree.y = h * 0.65;
 
-  // 遍历绘制小鸟 (使用真实的 DOM 元素，彻底解决图片不显示问题)
+  // 遍历绘制小鸟
   birds.forEach((bird, index) => {
-    // 根据相对偏移量计算绝对坐标
+    // 【修复点 1】：防呆设计。如果 dx 是 NaN (旧版遗留数据)，重新随机分配，防止堆在左上角
+    if (isNaN(bird.dx) || isNaN(bird.dy)) {
+      let angle = random(-PI * 0.7, 0);
+      let radius = random(80, 160);
+      bird.dx = radius * Math.cos(angle);
+      bird.dy = radius * Math.sin(angle) - random(20, 80);
+    }
+
     bird.x = tree.x + bird.dx;
     bird.y = tree.y + bird.dy;
 
@@ -82,18 +94,32 @@ function renderBirdsDOM() {
     node.className = 'bird-node';
     node.style.left = bird.x + 'px';
     node.style.top = bird.y + 'px';
-    // 设置 CSS 动画的依次延迟出现效果
     node.style.animationDelay = `${index * 0.15}s`;
 
     const img = document.createElement('img');
-    img.src = bird.imgPath;
-    // 如果图片找不到，自动使用默认图片
-    img.onerror = () => { img.src = DEFAULT_BIRD_IMG; };
+    // 使用 encodeURI 确保中文字符路径不被浏览器拦截
+    img.src = encodeURI(bird.imgPath);
+    
+    // 【修复点 2】：图片加载失败的终极容错
+    img.onerror = function() {
+      if (!this.dataset.triedDefault) {
+        this.dataset.triedDefault = true;
+        this.src = DEFAULT_BIRD_IMG; // 尝试加载默认图片
+      } else {
+        // 如果连默认图片都没有，就直接变成一个带有文字的彩色圆圈
+        this.style.display = 'none';
+        const fallbackText = document.createElement('div');
+        fallbackText.className = 'bird-fallback';
+        fallbackText.innerText = bird.species.substring(0, 2);
+        node.appendChild(fallbackText);
+      }
+    };
+
     node.appendChild(img);
 
-    // 绑定点击弹出浮窗事件
+    // 绑定点击事件
     node.addEventListener('click', (e) => {
-      e.stopPropagation(); // 阻止事件冒泡到父容器
+      e.stopPropagation(); 
       showPopup(bird);
     });
 
@@ -104,9 +130,10 @@ function renderBirdsDOM() {
   container.addEventListener('click', closePopup);
 }
 
-// 动态注入原生特效所需的 CSS
 function injectCSS() {
+  if (document.getElementById('bird-dynamic-style')) return;
   const style = document.createElement('style');
+  style.id = 'bird-dynamic-style';
   style.innerHTML = `
     .bird-node {
       position: absolute;
@@ -120,10 +147,10 @@ function injectCSS() {
       transition: box-shadow 0.2s, z-index 0.2s;
       z-index: 10;
       animation: birdPopIn 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
-      background-color: rgba(255, 255, 255, 0.5);
+      background-color: rgba(255, 255, 255, 0.2);
     }
     .bird-node:hover {
-      box-shadow: 0 0 0 3px #607d8b, 0 6px 15px rgba(0,0,0,0.4);
+      box-shadow: 0 0 0 3px #fff, 0 6px 15px rgba(0,0,0,0.4);
       z-index: 20;
     }
     .bird-node img {
@@ -131,7 +158,20 @@ function injectCSS() {
       height: 100%;
       object-fit: cover;
       border-radius: 50%;
-      pointer-events: none; /* 让外层 div 捕捉点击事件 */
+      pointer-events: none;
+      display: block;
+    }
+    .bird-fallback {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #4CAF50, #2E7D32);
+      color: white;
+      font-size: 12px;
+      font-weight: bold;
     }
     @keyframes birdPopIn {
       to { transform: translate(-50%, -50%) scale(1); opacity: 1; }
@@ -150,43 +190,116 @@ function injectCSS() {
       from { transform: translate(-50%, -50%) scale(0.9); }
       to { transform: translate(-50%, -50%) scale(1.1); }
     }
+    .leaf-popup {
+      position: absolute;
+      z-index: 9999;
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(10px);
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.15);
+      width: 280px;
+      animation: fadeIn 0.2s ease-out;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
   `;
   document.head.appendChild(style);
 }
 
-// ---------- 3. 树与数据生成逻辑 ----------
-function getCurrentTree() {
-  return trees.find(t => t.id === currentTreeId);
+// ---------- 3. 浮窗交互管理 ----------
+function showPopup(bird) {
+  closePopup();
+  let species = bird.species;
+  let wikiUrl = `https://zh.wikipedia.org/wiki/${encodeURIComponent(species)}`;
+  let desc = afcdMap.get(species) || '香港常见鸟类，鸣声独特，为城市生态增添活力。';
+
+  let root = document.getElementById('popup-root') || document.body;
+  const popup = document.createElement('div');
+  popup.className = 'leaf-popup';
+
+  popup.innerHTML = `
+    <button class="close-btn" style="position:absolute; right:12px; top:12px; border:none; background:none; font-size:18px; cursor:pointer; color:#666;">✖</button>
+    <div style="display:flex; gap:12px; margin-top:5px;">
+      <img src="${encodeURI(bird.imgPath)}" onerror="this.style.display='none'" style="width:64px; height:64px; object-fit:cover; border-radius:10px; background:#ddd;">
+      <div>
+        <h4 style="margin:0; font-size:16px; color:#222;">${species}</h4>
+        <div style="font-size:12px; color:#666; font-style:italic; margin-top:4px;">${bird.scientific}</div>
+      </div>
+    </div>
+    <div style="margin-top:12px; font-size:13px; font-weight:bold; color:#4a7a5e;">📊 置信度 ${(bird.confidence * 100).toFixed(0)}%</div>
+    <div style="font-size:13px; color:#444; margin-top:8px; line-height:1.5;">${desc}</div>
+    <div style="margin-top:12px; display:flex; gap:8px;">
+      <button class="play-btn" style="padding:6px 12px; background:#4a7a5e; color:#fff; border:none; border-radius:6px; cursor:pointer; flex:1;">▶ 播放鸣叫</button>
+      <button class="stop-btn" style="padding:6px 12px; background:#e0e0e0; color:#333; border:none; border-radius:6px; cursor:pointer;">⏹️</button>
+      <a href="${wikiUrl}" target="_blank" style="padding:6px 12px; background:#f0f0f0; color:#333; text-decoration:none; border-radius:6px; font-size:13px; text-align:center;">📖 百科</a>
+    </div>
+  `;
+
+  // 【修复点 3】：基于页面的绝对定位计算，修复浮窗跑到最底部的问题
+  const container = document.getElementById('canvas-container');
+  const rect = container.getBoundingClientRect();
+  
+  // 视口坐标 + 网页卷去的距离 = 网页绝对坐标
+  let absoluteX = rect.left + window.scrollX + bird.x;
+  let absoluteY = rect.top + window.scrollY + bird.y;
+
+  let left = absoluteX - 140; // 让浮窗居中小鸟
+  let top = absoluteY - 180;  // 让浮窗悬浮在小鸟正上方
+
+  // 边界保护：防止弹出屏幕之外
+  left = Math.max(10, Math.min(window.innerWidth - 300, left));
+  top = Math.max(10, top);
+  
+  popup.style.left = left + 'px';
+  popup.style.top = top + 'px';
+  
+  root.appendChild(popup);
+  currentPopup = popup;
+
+  // 绑定音频
+  let tree = getCurrentTree();
+  let audioPath = tree.audioMap.get(species);
+  let playBtn = popup.querySelector('.play-btn');
+  let stopBtn = popup.querySelector('.stop-btn');
+  let audioObj = null;
+
+  if (audioPath && audioEnabled) {
+    audioObj = new Audio(audioPath);
+    playBtn.onclick = () => { audioObj.currentTime = 0; audioObj.play(); };
+    stopBtn.onclick = () => { audioObj.pause(); audioObj.currentTime = 0; };
+  } else {
+    playBtn.onclick = () => showToast(audioEnabled ? '未找到该物种音频' : '请先在顶栏点击【启用音频】');
+  }
+  
+  popup.addEventListener('click', (e) => e.stopPropagation());
+  popup.querySelector('.close-btn').onclick = closePopup;
 }
+
+function closePopup() {
+  if (currentPopup) currentPopup.remove();
+  currentPopup = null;
+}
+
+// ---------- 4. 树与数据生成逻辑 ----------
+function getCurrentTree() { return trees.find(t => t.id === currentTreeId); }
 
 function createPresetTree() {
   const tree = {
-    id: 'preset_tree',
-    name: '香港公园 · 榕树',
-    lat: 22.278,
-    lng: 114.162,
-    birds: [],
-    audioMap: new Map(),
-    birdnetRecords: []
+    id: 'preset_tree', name: '香港公园 · 榕树', lat: 22.278, lng: 114.162,
+    birds: [], audioMap: new Map(), birdnetRecords: []
   };
 
   let birdList = [];
   for (let sp of PRESET_SPECIES) {
     let angle = random(-PI * 0.7, 0);
     let radius = random(80, 160);
-    // 储存相对偏移量 dx, dy
-    let dx = radius * Math.cos(angle);
-    let dy = radius * Math.sin(angle) - random(20, 80);
-    
     birdList.push({
-      id: sp.common,
-      species: sp.common,
-      scientific: sp.scientific,
-      confidence: sp.confidence,
-      imgPath: sp.img,
-      audioPath: sp.audioFile,
-      dx: dx,
-      dy: dy
+      id: sp.common, species: sp.common, scientific: sp.scientific,
+      confidence: sp.confidence, imgPath: sp.img, audioPath: sp.audioFile,
+      dx: radius * Math.cos(angle), dy: radius * Math.sin(angle) - random(20, 80)
     });
     if (sp.audioFile) tree.audioMap.set(sp.common, sp.audioFile);
   }
@@ -214,18 +327,13 @@ function updateCurrentTreeBirds() {
     
     let angle = startAngle + i * angleStep + random(-0.2, 0.2);
     let radius = random(80, 160);
-    let dx = radius * Math.cos(angle);
-    let dy = radius * Math.sin(angle) - random(20, 80);
     
     newBirds.push({
-      id: spName,
-      species: spName,
-      scientific: preset ? preset.scientific : '未知',
-      confidence: avgConf,
+      id: spName, species: spName,
+      scientific: preset ? preset.scientific : '未知', confidence: avgConf,
       imgPath: preset ? preset.img : DEFAULT_BIRD_IMG,
       audioPath: preset ? preset.audioFile : null,
-      dx: dx,
-      dy: dy
+      dx: radius * Math.cos(angle), dy: radius * Math.sin(angle) - random(20, 80)
     });
     if (preset && preset.audioFile) treeObj.audioMap.set(spName, preset.audioFile);
   }
@@ -234,76 +342,31 @@ function updateCurrentTreeBirds() {
   renderBirdsDOM();
 }
 
-// ---------- 4. 浮窗交互管理 ----------
-function showPopup(bird) {
-  closePopup();
-  let species = bird.species;
-  let wikiUrl = `https://zh.wikipedia.org/wiki/${encodeURIComponent(species)}`;
-  let desc = afcdMap.get(species) || '香港常见鸟类，鸣声独特，为城市生态增添活力。';
+// ---------- 5. 数据与缓存管理 ----------
+function saveTreesToLocalStorage() {
+  let serializable = trees.map(t => ({
+    id: t.id, name: t.name, lat: t.lat, lng: t.lng,
+    birds: t.birds, audioMap: Array.from(t.audioMap.entries()), birdnetRecords: t.birdnetRecords
+  }));
+  localStorage.setItem('birdnetcafe_trees', JSON.stringify(serializable));
+}
 
-  let root = document.getElementById('popup-root') || document.body;
-  const popup = document.createElement('div');
-  popup.className = 'leaf-popup';
-  popup.style.position = 'absolute';
-  popup.style.zIndex = '9999';
-
-  popup.innerHTML = `
-    <button class="close-btn" style="position:absolute; right:10px; top:10px; border:none; background:none; font-size:16px; cursor:pointer;">✖</button>
-    <div style="display:flex; gap:12px; margin-top:5px;">
-      <img src="${bird.imgPath}" onerror="this.src='${DEFAULT_BIRD_IMG}'" style="width:70px; height:70px; object-fit:cover; border-radius:12px;">
-      <div>
-        <h4 style="margin:0; font-size:16px;">${species}</h4>
-        <div style="font-size:12px; color:#666; font-style:italic;">${bird.scientific}</div>
-      </div>
-    </div>
-    <div style="margin-top:10px; font-size:12px; font-weight:bold; color:#4a7a5e;">📊 置信度 ${(bird.confidence * 100).toFixed(0)}%</div>
-    <div style="font-size:13px; color:#444; margin-top:8px;">${desc}</div>
-    <div style="margin-top:12px; display:flex; gap:8px;">
-      <button class="play-btn" style="padding:6px 12px; background:#4a7a5e; color:#fff; border:none; border-radius:6px; cursor:pointer;">▶ 播放鸟叫</button>
-      <button class="stop-btn" style="padding:6px 12px; background:#e0e0e0; color:#333; border:none; border-radius:6px; cursor:pointer;">⏹️</button>
-      <a href="${wikiUrl}" target="_blank" style="padding:6px 12px; background:#f0f0f0; color:#333; text-decoration:none; border-radius:6px; font-size:13px;">📖 百科</a>
-    </div>
-  `;
-
-  // 保证位置不溢出屏幕
-  const containerRect = document.getElementById('canvas-container').getBoundingClientRect();
-  let left = containerRect.left + bird.x - 150;
-  let top = containerRect.top + bird.y - 140;
-  left = Math.min(window.innerWidth - 280, Math.max(10, left));
-  top = Math.max(10, top);
-  
-  popup.style.left = left + 'px';
-  popup.style.top = top + 'px';
-  root.appendChild(popup);
-  currentPopup = popup;
-
-  // 绑定内部音频按钮
-  let tree = getCurrentTree();
-  let audioPath = tree.audioMap.get(species);
-  let playBtn = popup.querySelector('.play-btn');
-  let stopBtn = popup.querySelector('.stop-btn');
-  let audioObj = null;
-
-  if (audioPath && audioEnabled) {
-    audioObj = new Audio(audioPath);
-    playBtn.onclick = () => { audioObj.currentTime = 0; audioObj.play(); };
-    stopBtn.onclick = () => { audioObj.pause(); audioObj.currentTime = 0; };
-  } else {
-    playBtn.onclick = () => showToast(audioEnabled ? '未找到该物种音频' : '请先在顶栏点击【启用音频】');
+function loadTreesFromLocalStorage() {
+  let data = localStorage.getItem('birdnetcafe_trees');
+  if (!data) return;
+  try {
+    trees = JSON.parse(data).map(t => ({
+      ...t, audioMap: new Map(t.audioMap || [])
+    }));
+    trees.forEach(t => addMapMarker(t));
+  } catch (e) {
+    trees = []; // 如果数据格式彻底损坏，直接清空重置
   }
-  
-  // 阻止在卡片上的点击冒泡导致卡片关闭
-  popup.addEventListener('click', (e) => e.stopPropagation());
-  popup.querySelector('.close-btn').onclick = closePopup;
 }
 
-function closePopup() {
-  if (currentPopup) currentPopup.remove();
-  currentPopup = null;
-}
-
-// ---------- 5. 地图、多树与 CSV 管理 ----------
+// ---------- 6. 地图与 UI 绑定 ----------
 function initMap() { 
+  if(!document.getElementById('map')) return;
   map = L.map('map').setView([22.278, 114.162], 13);
   L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
     attribution: '&copy; OSM'
@@ -315,6 +378,7 @@ function initMap() {
 }
 
 function addMapMarker(tree) {
+  if(!map) return;
   let marker = L.marker([tree.lat, tree.lng]).addTo(map);
   marker.bindPopup(`<b>${tree.name}</b>`);
   marker.on('click', () => setCurrentTree(tree.id));
@@ -323,6 +387,7 @@ function addMapMarker(tree) {
 
 function updateTreeListUI() {
   let ul = document.getElementById('tree-list');
+  if(!ul) return;
   ul.innerHTML = '';
   trees.forEach(tree => {
     let li = document.createElement('li');
@@ -336,44 +401,24 @@ function updateTreeListUI() {
 function setCurrentTree(id) {
   currentTreeId = id;
   let tree = getCurrentTree();
-  if (tree && tree.marker) map.setView([tree.lat, tree.lng], 15);
+  if (tree && tree.marker && map) map.setView([tree.lat, tree.lng], 15);
   birds = tree.birds || [];
   updateTreeListUI();
-  renderBirdsDOM(); // 切换树时重新执行原生 DOM 渲染
+  renderBirdsDOM();
 }
 
-function saveTreesToLocalStorage() {
-  let serializable = trees.map(t => ({
-    id: t.id, name: t.name, lat: t.lat, lng: t.lng,
-    birds: t.birds,
-    audioMap: Array.from(t.audioMap.entries()),
-    birdnetRecords: t.birdnetRecords
-  }));
-  localStorage.setItem('birdnetcafe_trees', JSON.stringify(serializable));
-}
-
-function loadTreesFromLocalStorage() {
-  let data = localStorage.getItem('birdnetcafe_trees');
-  if (!data) return;
-  trees = JSON.parse(data).map(t => ({
-    ...t, audioMap: new Map(t.audioMap)
-  }));
-  trees.forEach(t => addMapMarker(t));
-}
-
-// ---------- UI 事件绑定与 CSV 解析 ----------
 function bindUI() {
-  document.getElementById('enableAudioBtn').addEventListener('click', () => {
+  document.getElementById('enableAudioBtn')?.addEventListener('click', () => {
     audioEnabled = true;
     showToast('🎵 音频已启用！点击小鸟即可播放叫声');
   });
 
-  document.getElementById('resetBtn').addEventListener('click', () => {
+  document.getElementById('resetBtn')?.addEventListener('click', () => {
     localStorage.clear();
     location.reload();
   });
 
-  document.getElementById('createTreeBtn').addEventListener('click', () => {
+  document.getElementById('createTreeBtn')?.addEventListener('click', () => {
     document.getElementById('newTreeCoords').value = '';
     document.getElementById('newTreeName').value = '';
     document.getElementById('createTreeModal').style.display = 'flex';
@@ -383,7 +428,7 @@ function bindUI() {
     btn.onclick = () => btn.closest('.modal').style.display = 'none';
   });
 
-  document.getElementById('confirmCreateTree').addEventListener('click', async () => {
+  document.getElementById('confirmCreateTree')?.addEventListener('click', async () => {
     let name = document.getElementById('newTreeName').value;
     let coordStr = document.getElementById('newTreeCoords').value;
     if (!name || !coordStr) { showToast('请填写树名和位置'); return; }
@@ -394,7 +439,7 @@ function bindUI() {
     document.getElementById('createTreeModal').style.display = 'none';
   });
 
-  document.getElementById('birdnetFile').addEventListener('change', async e => {
+  document.getElementById('birdnetFile')?.addEventListener('change', async e => {
     let file = e.target.files[0];
     if (!file) return;
     await importCSVToCurrentTree(file);
@@ -421,7 +466,6 @@ async function createNewTree(name, lat, lng, csvFile, audioFilesList) {
   if (csvFile) {
     await importCSVToCurrentTree(csvFile);
   } else {
-    // 没传 CSV 文件，生成预置鸟演示
     let birdList = [];
     for (let sp of PRESET_SPECIES) {
       let angle = random(-PI * 0.7, 0);
@@ -437,7 +481,6 @@ async function createNewTree(name, lat, lng, csvFile, audioFilesList) {
     renderBirdsDOM();
   }
   
-  // 处理本地上传音频
   for (let file of audioFilesList) {
     let url = URL.createObjectURL(file);
     let speciesHint = file.name.replace(/\.[^/.]+$/, '');
