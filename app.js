@@ -15,13 +15,13 @@ let map = null;
 
 // ---------- 预置鸟类数据 ----------
 const PRESET_SPECIES = [
-  { common: "黑领椋鸟", scientific: "Gracupica nigricollis", confidence: 0.94, audioFile: "audio/黑领椋鸟.mp3", img: "https://cdn.pixabay.com/photo/2016/02/15/21/12/bird-1202513_1280.jpg" },
-  { common: "暗绿绣眼鸟", scientific: "Zosterops simplex", confidence: 0.85, audioFile: "audio/暗绿绣眼鸟.mp3", img: "https://cdn.pixabay.com/photo/2017/02/07/16/47/bird-2046324_1280.jpg" },
-  { common: "红耳鹎", scientific: "Pycnonotus jocosus", confidence: 0.78, audioFile: "audio/红耳鹎.mp3", img: "https://cdn.pixabay.com/photo/2020/10/18/09/09/bulbul-5663544_1280.jpg" },
-  { common: "噪鹃", scientific: "Eudynamys scolopaceus", confidence: 0.77, audioFile: "audio/噪鹃.mp3", img: "https://cdn.pixabay.com/photo/2018/05/09/19/24/bird-3386321_1280.jpg" },
-  { common: "黄眉柳莺", scientific: "Phylloscopus inornatus", confidence: 0.75, audioFile: "audio/黄眉柳莺.mp3", img: "https://cdn.pixabay.com/photo/2017/02/07/16/47/warbler-2046331_1280.jpg" },
-  { common: "家麻雀", scientific: "Passer domesticus", confidence: 0.71, audioFile: "audio/家麻雀.mp3", img: "https://cdn.pixabay.com/photo/2017/02/07/16/47/sparrow-2046330_1280.jpg" },
-  { common: "白喉红臀鹎", scientific: "Pycnonotus aurigaster", confidence: 0.53, audioFile: "audio/白喉红臀鹎.mp3", img: "https://cdn.pixabay.com/photo/2019/03/23/14/41/bird-4076583_1280.jpg" }
+  { common: "黑领椋鸟", scientific: "Gracupica nigricollis", confidence: 0.94, audioFile: "audio/黑领椋鸟.mp3", img: "image/黑领椋鸟.png" },
+  { common: "暗绿绣眼鸟", scientific: "Zosterops simplex", confidence: 0.85, audioFile: "audio/暗绿绣眼鸟.mp3", img: "image/暗绿绣眼鸟.png" },
+  { common: "红耳鹎", scientific: "Pycnonotus jocosus", confidence: 0.78, audioFile: "audio/红耳鹎.mp3", img: "image/红耳鹎.png" },
+  { common: "噪鹃", scientific: "Eudynamys scolopaceus", confidence: 0.77, audioFile: "audio/噪鹃.mp3", img: "image/噪鹃.png" },
+  { common: "黄眉柳莺", scientific: "Phylloscopus inornatus", confidence: 0.75, audioFile: "audio/黄眉柳莺.mp3", img: "image/黄眉柳莺.png" },
+  { common: "家麻雀", scientific: "Passer domesticus", confidence: 0.71, audioFile: "audio/家麻雀.mp3", img: "image/家麻雀.png" },
+  { common: "白喉红臀鹎", scientific: "Pycnonotus aurigaster", confidence: 0.53, audioFile: "audio/白喉红臀鹎.mp3", img: "image/白喉红臀鹎.png" }
 ];
 const DEFAULT_BIRD_IMG = "https://cdn.pixabay.com/photo/2013/07/25/13/01/bird-167146_1280.png";
 
