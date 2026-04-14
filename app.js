@@ -44,9 +44,19 @@ function setup() {
   if (trees.length === 0) {
     createPresetTree();
   }
+  // 确保当前树有坐标
+  let firstTree = trees[0];
+  if (firstTree) {
+    firstTree.x = width / 2;
+    firstTree.y = height * 0.65;
+  }
   setCurrentTree(trees[0].id);
   updateTreeListUI();
   bindUI();
+
+  // 强制刷新叶片（再次确保）
+  updateCurrentTreeLeaves();
+  console.log("Leaves count after setup:", leaves.length); // 调试：应输出7
 
   // 延迟启动飞鸟动画，确保叶片已布局
   setTimeout(() => startBirdFlyAnimation(), 800);
@@ -101,23 +111,29 @@ function createPresetTree() {
       sumConf: sp.confidence,
       records: [{ species_common: sp.common, species_scientific: sp.scientific, confidence: sp.confidence }]
     };
-    // 尝试预加载音频（如果文件存在）
     if (sp.audioFile) {
-      // 实际加载在音频启用时或悬停时动态加载，此处仅记录路径
       tree.audioMap.set(sp.common, sp.audioFile);
     }
   }
   tree.speciesSummary = summary;
   trees.push(tree);
   saveTreesToLocalStorage();
+  console.log("Preset tree created with species:", Object.keys(summary));
 }
 
 function updateCurrentTreeLeaves() {
   let treeObj = getCurrentTree();
-  if (!treeObj) return;
+  if (!treeObj) {
+    console.warn("No current tree found");
+    return;
+  }
   leaves = [];
   let speciesList = Object.keys(treeObj.speciesSummary || {});
-  if (speciesList.length === 0) return;
+  if (speciesList.length === 0) {
+    console.warn("No species in current tree");
+    return;
+  }
+  console.log("Updating leaves for species:", speciesList);
 
   let angleStep = PI / (speciesList.length + 1);
   let startAngle = -PI * 0.6;
@@ -146,6 +162,7 @@ function updateCurrentTreeLeaves() {
       });
     }
   }
+  console.log("Generated leaves count:", leaves.length);
 }
 
 function repositionLeaves() {
@@ -192,8 +209,10 @@ function drawLeaf(lf) {
 
 // ---------- 主动飞鸟动画 ----------
 function startBirdFlyAnimation() {
-  if (leaves.length === 0) return;
-  // 每个物种派一只鸟代表
+  if (leaves.length === 0) {
+    console.warn("No leaves to animate");
+    return;
+  }
   let speciesDone = new Set();
   let tasks = [];
   for (let leaf of leaves) {
@@ -202,7 +221,6 @@ function startBirdFlyAnimation() {
       tasks.push({ species: leaf.species, targetLeaf: leaf });
     }
   }
-  // 随机顺序
   tasks.sort(() => Math.random() - 0.5);
   birdAnimationQueue = tasks;
   processNextBird();
@@ -221,7 +239,6 @@ function processNextBird() {
 function flyBirdToLeaf(species, targetLeaf, onComplete) {
   let preset = PRESET_SPECIES.find(s => s.common === species);
   let imgUrl = preset ? preset.img : DEFAULT_BIRD_IMG;
-  // 随机起始位置（画布外）
   let startX = random(-100, width+100);
   let startY = random(-100, -50);
   if (random() > 0.5) startY = height + 50;
@@ -306,7 +323,6 @@ async function showPopup(leaf) {
 
   if (audioPath && audioEnabled) {
     if (typeof audioPath === 'string') {
-      // 动态加载音频文件
       audioObj = new Audio(audioPath);
       playBtn.onclick = () => audioObj.play();
       stopBtn.onclick = () => { audioObj.pause(); audioObj.currentTime = 0; };
@@ -366,7 +382,7 @@ function setCurrentTree(id) {
   if (tree && tree.marker) map.setView([tree.lat, tree.lng], 15);
   updateCurrentTreeLeaves();
   updateTreeListUI();
-  startBirdFlyAnimation();  // 切换树后重新播放飞鸟动画
+  startBirdFlyAnimation();
 }
 
 function saveTreesToLocalStorage() {
@@ -391,7 +407,6 @@ function loadTreesFromLocalStorage() {
   trees.forEach(t => addMapMarker(t));
 }
 
-// 创建新树（模态框）
 async function createNewTree(name, lat, lng, csvFile, audioFilesList) {
   let newId = 'tree_' + Date.now();
   let tree = {
@@ -533,7 +548,6 @@ function bindUI() {
     };
     reader.readAsText(file);
   });
-  // 关于模态框
   document.getElementById('aboutBtn').addEventListener('click', () => {
     document.getElementById('aboutModal').style.display = 'flex';
   });
