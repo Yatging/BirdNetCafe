@@ -1,8 +1,11 @@
-/* BirdNetCafe · 翎英 (AvianLinked) - 修复预置树不显示问题 */
+/* BirdNetCafe · 翎英 (AvianLinked)
+   重构版：鸟直接显示在树上，逐渐出现动画，保留地图、多树、音频、浮窗
+*/
+
 let canvas;
 let trees = [];
 let currentTreeId = null;
-let leaves = [];
+let birds = [];              // 当前树的鸟对象数组
 let afcdMap = new Map();
 let audioFiles = new Map();
 let audioEnabled = false;
@@ -10,6 +13,7 @@ let hoverTimer = null;
 let currentPopup = null;
 let map = null;
 
+// 预置鸟类数据（包含图片、音频、置信度等）
 const PRESET_SPECIES = [
   { common: "黑领椋鸟", scientific: "Gracupica nigricollis", confidence: 0.94, audioFile: "audio/黑领椋鸟.mp3", img: "image/黑领椋鸟.png" },
   { common: "暗绿绣眼鸟", scientific: "Zosterops simplex", confidence: 0.85, audioFile: "audio/暗绿绣眼鸟.mp3", img: "image/暗绿绣眼鸟.png" },
@@ -21,9 +25,11 @@ const PRESET_SPECIES = [
 ];
 const DEFAULT_BIRD_IMG = "https://cdn.pixabay.com/photo/2013/07/25/13/01/bird-167146_1280.png";
 
-let birdAnimationQueue = [];
-let flyingBirdDivs = [];
+// 动画相关
+let appearAnimationQueue = [];
+let isAnimating = false;
 
+// ---------- p5.js 初始化 ----------
 function setup() {
   const container = document.getElementById('canvas-container');
   const w = container.clientWidth || 1000;
@@ -35,10 +41,10 @@ function setup() {
   initMap();
   loadTreesFromLocalStorage();
 
-  // 如果 trees 为空，或者第一棵树没有物种数据，强制重建预置树
-  if (trees.length === 0 || !trees[0].speciesSummary || Object.keys(trees[0].speciesSummary).length === 0) {
+  // 如果没有有效树，创建预置树
+  if (trees.length === 0 || !trees[0].birds || trees[0].birds.length === 0) {
     console.log("No valid tree found, creating preset tree");
-    localStorage.removeItem('birdnetcafe_trees'); // 清除旧缓存
+    localStorage.removeItem('birdnetcafe_trees');
     createPresetTree();
   }
 
@@ -52,12 +58,8 @@ function setup() {
   updateTreeListUI();
   bindUI();
 
-  // 强制刷新叶片
-  updateCurrentTreeLeaves();
-  console.log("Initial leaves count:", leaves.length);
-
-  // 延迟启动飞鸟动画
-  setTimeout(() => startBirdFlyAnimation(), 800);
+  // 启动逐渐出现动画
+  setTimeout(() => startAppearAnimation(), 500);
 }
 
 function windowResized() {
@@ -67,22 +69,56 @@ function windowResized() {
   if (current) {
     current.x = width / 2;
     current.y = height * 0.65;
-    repositionLeaves();
+    repositionBirds();
   }
 }
 
 function draw() {
   clear();
   noStroke();
+  // 光晕效果
   let glow = (frameCount * 0.02) % TWO_PI;
   let rad = 200 + sin(glow) * 20;
   fill(60, 15, 92, 8);
   ellipse(width/2, height*0.65 - 40, rad, rad);
   fill(0,0,0,10);
   ellipse(width/2, height - 20, 300, 50);
-  for (let leaf of leaves) drawLeaf(leaf);
+  // 绘制所有鸟
+  for (let bird of birds) drawBird(bird);
 }
 
+// 绘制单个鸟（图片或占位符）
+function drawBird(bird) {
+  push();
+  translate(bird.x, bird.y);
+  // 动画：逐渐出现（透明度 + 缩放）
+  let alpha = bird.appearProgress * 255;
+  let scaleVal = 0.6 + bird.appearProgress * 0.4;
+  scale(scaleVal);
+  if (bird.imgElement && bird.imgElement.complete) {
+    tint(255, alpha);
+    image(bird.imgElement, -bird.size/2, -bird.size/2, bird.size, bird.size);
+    noTint();
+  } else {
+    // 图片未加载时绘制圆形占位符
+    fill(80, 60, 70, alpha);
+    ellipse(0, 0, bird.size, bird.size);
+    fill(0, 0, 100, alpha);
+    textAlign(CENTER, CENTER);
+    textSize(12);
+    text(bird.species.substring(0,2), 0, 0);
+  }
+  // 悬停高亮外圈
+  if (bird.hover) {
+    noFill();
+    stroke(60, 80, 100);
+    strokeWeight(2);
+    ellipse(0, 0, bird.size + 6, bird.size + 6);
+  }
+  pop();
+}
+
+// ---------- 树与鸟管理 ----------
 function getCurrentTree() {
   return trees.find(t => t.id === currentTreeId);
 }
@@ -95,223 +131,136 @@ function createPresetTree() {
     lng: 114.162,
     x: width/2,
     y: height*0.65,
-    speciesSummary: {},
+    birds: [],            // 存储鸟对象
     audioMap: new Map(),
     birdnetRecords: []
   };
-  let summary = {};
+  // 生成预置鸟
+  let birdList = [];
   for (let sp of PRESET_SPECIES) {
-    summary[sp.common] = {
-      count: 1,
-      sumConf: sp.confidence,
-      records: [{ species_common: sp.common, species_scientific: sp.scientific, confidence: sp.confidence }]
-    };
+    let angle = random(-PI*0.7, 0);
+    let radius = random(80, 160);
+    let x = tree.x + radius * cos(angle);
+    let y = tree.y + radius * sin(angle) - random(20, 80);
+    let img = loadImage(sp.img, () => {}, () => {});
+    birdList.push({
+      id: sp.common,
+      species: sp.common,
+      scientific: sp.scientific,
+      confidence: sp.confidence,
+      imgPath: sp.img,
+      imgElement: img,
+      audioPath: sp.audioFile,
+      x: x, y: y,
+      baseX: x, baseY: y,
+      size: 36,
+      appearProgress: 0,
+      hover: false,
+      playing: false
+    });
     if (sp.audioFile) tree.audioMap.set(sp.common, sp.audioFile);
   }
-  tree.speciesSummary = summary;
-  trees = [tree]; // 直接替换，避免残留
+  tree.birds = birdList;
+  trees = [tree];
   saveTreesToLocalStorage();
-  console.log("Preset tree created with species:", Object.keys(summary));
+  console.log("Preset tree created with birds:", birdList.length);
 }
 
-function updateCurrentTreeLeaves() {
+// 根据当前树的物种数据更新鸟的位置（用于CSV导入后）
+function updateCurrentTreeBirds() {
   let treeObj = getCurrentTree();
-  if (!treeObj) {
-    console.error("No current tree");
-    return;
-  }
-  leaves = [];
+  if (!treeObj) return;
   let speciesList = Object.keys(treeObj.speciesSummary || {});
   if (speciesList.length === 0) {
-    console.warn("No species in current tree, using PRESET_SPECIES as fallback");
+    // 没有数据时使用预置物种
     speciesList = PRESET_SPECIES.map(s => s.common);
-    // 临时构建一个虚拟的 speciesSummary 用于叶片生成
-    for (let sp of speciesList) {
-      if (!treeObj.speciesSummary[sp]) {
-        let preset = PRESET_SPECIES.find(s => s.common === sp);
-        treeObj.speciesSummary[sp] = {
-          count: 1,
-          sumConf: preset ? preset.confidence : 0.5,
-          records: []
-        };
-      }
-    }
   }
-
+  let newBirds = [];
   let angleStep = PI / (speciesList.length + 1);
   let startAngle = -PI * 0.6;
   for (let i = 0; i < speciesList.length; i++) {
-    let sp = speciesList[i];
-    let info = treeObj.speciesSummary[sp];
-    let avgConf = info.sumConf / info.count;
-    let leafCount = Math.min(5, Math.max(1, Math.floor(info.count * 0.7) + 1));
-    for (let j = 0; j < leafCount; j++) {
-      let angle = startAngle + i * angleStep + random(-0.3, 0.3);
-      let radius = random(80, 160);
-      let baseX = treeObj.x + radius * cos(angle);
-      let baseY = treeObj.y + radius * sin(angle) - random(20, 110);
-      leaves.push({
-        id: `${sp}_${j}`,
-        baseX, baseY, x: baseX, y: baseY,
-        confidence: avgConf,
-        species: sp,
-        records: info.records || [],
-        avgConfidence: avgConf,
-        count: info.count,
-        hover: false,
-        playing: false,
-        idx: random(1000),
-        highlight: false
-      });
-    }
+    let spName = speciesList[i];
+    let info = treeObj.speciesSummary[spName];
+    let avgConf = info ? info.sumConf / info.count : 0.5;
+    let preset = PRESET_SPECIES.find(s => s.common === spName);
+    let imgPath = preset ? preset.img : DEFAULT_BIRD_IMG;
+    let audioPath = preset ? preset.audioFile : null;
+    let img = loadImage(imgPath, () => {}, () => {});
+    let angle = startAngle + i * angleStep + random(-0.2, 0.2);
+    let radius = random(80, 160);
+    let x = treeObj.x + radius * cos(angle);
+    let y = treeObj.y + radius * sin(angle) - random(20, 80);
+    newBirds.push({
+      id: spName,
+      species: spName,
+      scientific: preset ? preset.scientific : '未知',
+      confidence: avgConf,
+      imgPath: imgPath,
+      imgElement: img,
+      audioPath: audioPath,
+      x: x, y: y,
+      baseX: x, baseY: y,
+      size: 36,
+      appearProgress: 0,
+      hover: false,
+      playing: false
+    });
+    if (audioPath) treeObj.audioMap.set(spName, audioPath);
   }
-  console.log("Generated leaves count:", leaves.length);
+  treeObj.birds = newBirds;
+  birds = newBirds;
+  // 重新触发出现动画
+  startAppearAnimation();
 }
 
-function repositionLeaves() {
+function repositionBirds() {
   let treeObj = getCurrentTree();
   if (!treeObj) return;
-  for (let lf of leaves) {
-    let angle = atan2(lf.baseY - treeObj.y, lf.baseX - treeObj.x);
-    let radius = dist(treeObj.x, treeObj.y, lf.baseX, lf.baseY);
-    lf.baseX = treeObj.x + radius * cos(angle);
-    lf.baseY = treeObj.y + radius * sin(angle);
+  for (let bird of birds) {
+    let angle = atan2(bird.baseY - treeObj.y, bird.baseX - treeObj.x);
+    let radius = dist(treeObj.x, treeObj.y, bird.baseX, bird.baseY);
+    bird.baseX = treeObj.x + radius * cos(angle);
+    bird.baseY = treeObj.y + radius * sin(angle);
+    bird.x = bird.baseX;
+    bird.y = bird.baseY;
   }
 }
 
-function drawLeaf(lf) {
-  lf.x = lf.baseX + sin(frameCount * 0.02 + lf.idx) * 2.5;
-  lf.y = lf.baseY + cos(frameCount * 0.025 + lf.idx) * 2;
-
-  push();
-  translate(lf.x, lf.y);
-  rotate(sin(frameCount * 0.03 + lf.idx) * 0.2);
-  let size = map(lf.confidence, 0, 1, 14, 26);
-  let hue = map(lf.confidence, 0, 1, 80, 130);
-  let sat = map(lf.confidence, 0, 1, 50, 85);
-  let bright = map(lf.confidence, 0, 1, 70, 92);
-  if (lf.hover) {
-    fill(hue, sat, bright + 10);
-    stroke(0, 0, 0, 40);
-    strokeWeight(1.2);
-  } else {
-    noStroke();
-    fill(hue, sat, bright, 92);
-  }
-  if (lf.highlight) {
-    fill(hue, sat, 95, 80);
-    ellipse(0, 0, size*1.4, size*0.9);
-  }
-  beginShape();
-  vertex(-size * 0.4, 0);
-  bezierVertex(-size * 0.6, -size * 0.55, size * 0.6, -size * 0.55, size * 0.4, 0);
-  bezierVertex(size * 0.6, size * 0.55, -size * 0.6, size * 0.55, -size * 0.4, 0);
-  endShape(CLOSE);
-  pop();
-}
-function repositionLeaves() {
-  let treeObj = getCurrentTree();
-  if (!treeObj) return;
-  for (let lf of leaves) {
-    let angle = atan2(lf.baseY - treeObj.y, lf.baseX - treeObj.x);
-    let radius = dist(treeObj.x, treeObj.y, lf.baseX, lf.baseY);
-    lf.baseX = treeObj.x + radius * cos(angle);
-    lf.baseY = treeObj.y + radius * sin(angle);
-  }
+// ---------- 鸟逐渐出现动画 ----------
+function startAppearAnimation() {
+  if (birds.length === 0) return;
+  // 重置所有鸟的进度
+  for (let bird of birds) bird.appearProgress = 0;
+  appearAnimationQueue = [...birds];
+  processNextAppear();
 }
 
-function drawLeaf(lf) {
-  lf.x = lf.baseX + sin(frameCount * 0.02 + lf.idx) * 2.5;
-  lf.y = lf.baseY + cos(frameCount * 0.025 + lf.idx) * 2;
-
-  push();
-  translate(lf.x, lf.y);
-  rotate(sin(frameCount * 0.03 + lf.idx) * 0.2);
-  let size = map(lf.confidence, 0, 1, 14, 26);
-  let hue = map(lf.confidence, 0, 1, 80, 130);
-  let sat = map(lf.confidence, 0, 1, 50, 85);
-  let bright = map(lf.confidence, 0, 1, 70, 92);
-  if (lf.hover) {
-    fill(hue, sat, bright + 10);
-    stroke(0, 0, 0, 40);
-    strokeWeight(1.2);
-  } else {
-    noStroke();
-    fill(hue, sat, bright, 92);
-  }
-  if (lf.highlight) {
-    fill(hue, sat, 95, 80);
-    ellipse(0, 0, size*1.4, size*0.9);
-  }
-  beginShape();
-  vertex(-size * 0.4, 0);
-  bezierVertex(-size * 0.6, -size * 0.55, size * 0.6, -size * 0.55, size * 0.4, 0);
-  bezierVertex(size * 0.6, size * 0.55, -size * 0.6, size * 0.55, -size * 0.4, 0);
-  endShape(CLOSE);
-  pop();
-}
-
-// ---------- 主动飞鸟动画 ----------
-function startBirdFlyAnimation() {
-  if (leaves.length === 0) {
-    console.warn("No leaves to animate");
-    return;
-  }
-  let speciesDone = new Set();
-  let tasks = [];
-  for (let leaf of leaves) {
-    if (!speciesDone.has(leaf.species)) {
-      speciesDone.add(leaf.species);
-      tasks.push({ species: leaf.species, targetLeaf: leaf });
+function processNextAppear() {
+  if (appearAnimationQueue.length === 0) return;
+  let bird = appearAnimationQueue.shift();
+  // 动画：0 -> 1 在 0.6 秒内完成
+  let startTime = millis();
+  function step() {
+    let elapsed = millis() - startTime;
+    let progress = Math.min(1, elapsed / 600);
+    bird.appearProgress = progress;
+    if (progress < 1) {
+      requestAnimationFrame(step);
+    } else {
+      // 完成后延迟0.3秒出现下一只
+      setTimeout(() => processNextAppear(), 300);
     }
   }
-  tasks.sort(() => Math.random() - 0.5);
-  birdAnimationQueue = tasks;
-  processNextBird();
+  step();
 }
 
-function processNextBird() {
-  if (birdAnimationQueue.length === 0) return;
-  let task = birdAnimationQueue.shift();
-  flyBirdToLeaf(task.species, task.targetLeaf, () => {
-    task.targetLeaf.highlight = true;
-    setTimeout(() => { task.targetLeaf.highlight = false; }, 800);
-    setTimeout(() => processNextBird(), 400);
-  });
-}
-
-function flyBirdToLeaf(species, targetLeaf, onComplete) {
-  let preset = PRESET_SPECIES.find(s => s.common === species);
-  let imgUrl = preset ? preset.img : DEFAULT_BIRD_IMG;
-  let startX = random(-100, width+100);
-  let startY = random(-100, -50);
-  if (random() > 0.5) startY = height + 50;
-  let canvasRect = canvas.elt.getBoundingClientRect();
-  let targetX = canvasRect.left + targetLeaf.x;
-  let targetY = canvasRect.top + targetLeaf.y;
-  let birdDiv = document.createElement('div');
-  birdDiv.className = 'flying-bird';
-  birdDiv.style.backgroundImage = `url(${imgUrl})`;
-  birdDiv.style.left = startX + 'px';
-  birdDiv.style.top = startY + 'px';
-  birdDiv.style.setProperty('--tx', (targetX - startX) + 'px');
-  birdDiv.style.setProperty('--ty', (targetY - startY) + 'px');
-  document.body.appendChild(birdDiv);
-  flyingBirdDivs.push(birdDiv);
-  birdDiv.addEventListener('animationend', () => {
-    birdDiv.remove();
-    if (onComplete) onComplete();
-  });
-}
-
-// ---------- 悬停浮窗与音频 ----------
-function checkLeafHover() {
+// ---------- 悬停检测与浮窗 ----------
+function checkBirdHover() {
   let hit = null;
-  for (let lf of leaves) {
-    let d = dist(mouseX, mouseY, lf.x, lf.y);
-    let size = map(lf.confidence, 0, 1, 14, 26);
-    if (d < size * 0.7) hit = lf;
-    lf.hover = (lf === hit);
+  for (let bird of birds) {
+    let d = dist(mouseX, mouseY, bird.x, bird.y);
+    if (d < bird.size/2) hit = bird;
+    bird.hover = (bird === hit);
   }
   if (hit && !currentPopup) {
     if (hoverTimer) clearTimeout(hoverTimer);
@@ -322,13 +271,12 @@ function checkLeafHover() {
   }
 }
 
-async function showPopup(leaf) {
+async function showPopup(bird) {
   closePopup();
-  let species = leaf.species;
-  let preset = PRESET_SPECIES.find(s => s.common === species);
-  let imgUrl = preset ? preset.img : DEFAULT_BIRD_IMG;
+  let species = bird.species;
+  let imgUrl = bird.imgPath;
   let wikiUrl = `https://zh.wikipedia.org/wiki/${encodeURIComponent(species)}`;
-  let sciName = leaf.records[0]?.species_scientific || (preset ? preset.scientific : '未知');
+  let sciName = bird.scientific;
   let desc = afcdMap.get(species) || '香港常见鸟类，鸣声独特。';
 
   const root = document.getElementById('popup-root');
@@ -340,7 +288,7 @@ async function showPopup(leaf) {
       <img src="${imgUrl}" style="width:70px; height:70px; object-fit:cover; border-radius:12px;">
       <div><h4>${species}</h4><div class="sci-name">${sciName}</div></div>
     </div>
-    <div class="meta">📊 置信度 ${(leaf.avgConfidence*100).toFixed(0)}% · 🔢 ${leaf.count}条记录</div>
+    <div class="meta">📊 置信度 ${(bird.confidence*100).toFixed(0)}%</div>
     <div class="desc">${desc}</div>
     <div class="controls">
       <button class="play-btn">▶ 播放鸟叫</button>
@@ -349,8 +297,8 @@ async function showPopup(leaf) {
     </div>
   `;
   const rect = canvas.elt.getBoundingClientRect();
-  let left = rect.left + leaf.x - 150;
-  let top = rect.top + leaf.y - 140;
+  let left = rect.left + bird.x - 150;
+  let top = rect.top + bird.y - 140;
   left = Math.min(window.innerWidth-280, Math.max(10, left));
   top = Math.max(10, top);
   popup.style.left = left + 'px';
@@ -389,8 +337,8 @@ function closePopup() {
   if (hoverTimer) clearTimeout(hoverTimer);
 }
 
-// ---------- 地图与多树管理 ----------
-function initMap() {
+// ---------- 地图与多树管理（保留原有功能，适配鸟类）----------
+function initMap() { /* 同前，略 */ 
   map = L.map('map').setView([22.278, 114.162], 13);
   L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>'
@@ -424,16 +372,16 @@ function setCurrentTree(id) {
   currentTreeId = id;
   let tree = getCurrentTree();
   if (tree && tree.marker) map.setView([tree.lat, tree.lng], 15);
-  updateCurrentTreeLeaves();
+  birds = tree.birds || [];
   updateTreeListUI();
-  startBirdFlyAnimation();
+  startAppearAnimation();  // 切换树后重新播放出现动画
 }
 
 function saveTreesToLocalStorage() {
   let serializable = trees.map(t => ({
     id: t.id, name: t.name, lat: t.lat, lng: t.lng,
     x: t.x, y: t.y,
-    speciesSummary: t.speciesSummary,
+    birds: t.birds.map(b => ({ ...b, imgElement: null })), // 不序列化图片对象
     audioMap: Array.from(t.audioMap.entries()),
     birdnetRecords: t.birdnetRecords
   }));
@@ -444,56 +392,45 @@ function loadTreesFromLocalStorage() {
   let data = localStorage.getItem('birdnetcafe_trees');
   if (!data) return;
   let parsed = JSON.parse(data);
-  trees = parsed.map(t => ({
-    ...t,
-    audioMap: new Map(t.audioMap)
-  }));
+  trees = parsed.map(t => {
+    // 重新加载图片
+    let birdsWithImg = (t.birds || []).map(b => {
+      let img = loadImage(b.imgPath, () => {}, () => {});
+      return { ...b, imgElement: img };
+    });
+    return {
+      ...t,
+      birds: birdsWithImg,
+      audioMap: new Map(t.audioMap)
+    };
+  });
   trees.forEach(t => addMapMarker(t));
 }
 
-async function createNewTree(name, lat, lng, csvFile, audioFilesList) {
-  let newId = 'tree_' + Date.now();
-  let tree = {
-    id: newId, name: name, lat: lat, lng: lng,
-    x: width/2, y: height*0.65,
-    speciesSummary: {},
-    audioMap: new Map(),
-    birdnetRecords: []
-  };
-  if (csvFile) {
-    let text = await csvFile.text();
-    let records = parseCSV(text);
-    tree.birdnetRecords = records;
-    let summary = {};
-    for (let rec of records) {
-      let species = rec.species_common || rec.Species || rec.scientific || 'Unknown';
-      let conf = parseFloat(rec.confidence || rec.Confidence || 0);
-      if (isNaN(conf)) conf = 0;
-      if (!summary[species]) summary[species] = { count:0, sumConf:0, records:[] };
-      summary[species].count++;
-      summary[species].sumConf += conf;
-      summary[species].records.push(rec);
-    }
-    tree.speciesSummary = summary;
+// CSV导入后更新当前树的鸟类
+async function importCSVToCurrentTree(csvFile) {
+  let tree = getCurrentTree();
+  if (!tree) return;
+  let text = await csvFile.text();
+  let records = parseCSV(text);
+  tree.birdnetRecords = records;
+  let summary = {};
+  for (let rec of records) {
+    let species = rec.species_common || rec.Species || rec.scientific || 'Unknown';
+    let conf = parseFloat(rec.confidence || rec.Confidence || 0);
+    if (isNaN(conf)) conf = 0;
+    if (!summary[species]) summary[species] = { count:0, sumConf:0, records:[] };
+    summary[species].count++;
+    summary[species].sumConf += conf;
+    summary[species].records.push(rec);
   }
-  for (let file of audioFilesList) {
-    let url = URL.createObjectURL(file);
-    let speciesHint = file.name.replace(/\.[^/.]+$/, '');
-    for (let sp of Object.keys(tree.speciesSummary)) {
-      if (speciesHint.includes(sp) || sp.includes(speciesHint)) {
-        tree.audioMap.set(sp, url);
-        break;
-      }
-    }
-  }
-  trees.push(tree);
-  addMapMarker(tree);
+  tree.speciesSummary = summary;
+  updateCurrentTreeBirds();
   saveTreesToLocalStorage();
-  setCurrentTree(newId);
-  showToast(`新树“${name}”已创建！`);
+  showToast(`已为“${tree.name}”导入 ${records.length} 条记录`);
 }
 
-function parseCSV(text) {
+function parseCSV(text) { /* 同前，略 */
   const lines = text.split(/\r?\n/).filter(l=>l.trim());
   if (lines.length<1) return [];
   const headers = lines[0].split(',').map(h=>h.trim().replace(/^"|"$/g,''));
@@ -516,12 +453,12 @@ function parseCSV(text) {
 
 // ---------- UI 绑定 ----------
 function bindUI() {
-  canvas.mouseMoved(checkLeafHover);
+  canvas.mouseMoved(checkBirdHover);
   document.getElementById('enableAudioBtn').addEventListener('click', () => {
     if (getAudioContext().state !== 'running') {
       getAudioContext().resume().then(() => {
         audioEnabled = true;
-        showToast('音频已启用，悬停叶片可播放');
+        showToast('音频已启用，悬停鸟即可播放');
       });
     } else {
       audioEnabled = true;
@@ -557,7 +494,7 @@ function bindUI() {
     let exportData = {
       name: tree.name,
       lat: tree.lat, lng: tree.lng,
-      speciesSummary: tree.speciesSummary,
+      birds: tree.birds.map(b => ({ ...b, imgElement: null })),
       audioMap: Array.from(tree.audioMap.entries())
     };
     let dataStr = JSON.stringify(exportData);
@@ -580,7 +517,7 @@ function bindUI() {
         name: data.name,
         lat: data.lat, lng: data.lng,
         x: width/2, y: height*0.65,
-        speciesSummary: data.speciesSummary,
+        birds: data.birds.map(b => ({ ...b, imgElement: loadImage(b.imgPath) })),
         audioMap: new Map(data.audioMap),
         birdnetRecords: []
       };
@@ -595,6 +532,12 @@ function bindUI() {
   document.getElementById('aboutBtn').addEventListener('click', () => {
     document.getElementById('aboutModal').style.display = 'flex';
   });
+  // 新增：为当前树导入CSV的按钮（复用原有的birdnetFile）
+  document.getElementById('birdnetFile').addEventListener('change', async e => {
+    let file = e.target.files[0];
+    if (!file) return;
+    await importCSVToCurrentTree(file);
+  });
 }
 
 function showToast(msg) {
@@ -604,4 +547,110 @@ function showToast(msg) {
   toast.innerText = msg;
   root.appendChild(toast);
   setTimeout(() => toast.remove(), 2200);
+}
+
+// 创建新树（模态框）- 复用原有逻辑，但生成鸟类
+async function createNewTree(name, lat, lng, csvFile, audioFilesList) {
+  let newId = 'tree_' + Date.now();
+  let tree = {
+    id: newId, name: name, lat: lat, lng: lng,
+    x: width/2, y: height*0.65,
+    birds: [],
+    audioMap: new Map(),
+    birdnetRecords: []
+  };
+  if (csvFile) {
+    let text = await csvFile.text();
+    let records = parseCSV(text);
+    tree.birdnetRecords = records;
+    let summary = {};
+    for (let rec of records) {
+      let species = rec.species_common || rec.Species || rec.scientific || 'Unknown';
+      let conf = parseFloat(rec.confidence || rec.Confidence || 0);
+      if (isNaN(conf)) conf = 0;
+      if (!summary[species]) summary[species] = { count:0, sumConf:0, records:[] };
+      summary[species].count++;
+      summary[species].sumConf += conf;
+      summary[species].records.push(rec);
+    }
+    tree.speciesSummary = summary;
+    // 根据summary生成鸟
+    let birdList = [];
+    let angleStep = PI / (Object.keys(summary).length + 1);
+    let startAngle = -PI * 0.6;
+    let i = 0;
+    for (let sp in summary) {
+      let avgConf = summary[sp].sumConf / summary[sp].count;
+      let preset = PRESET_SPECIES.find(s => s.common === sp);
+      let imgPath = preset ? preset.img : DEFAULT_BIRD_IMG;
+      let audioPath = preset ? preset.audioFile : null;
+      let img = loadImage(imgPath, () => {}, () => {});
+      let angle = startAngle + i * angleStep + random(-0.2, 0.2);
+      let radius = random(80, 160);
+      let x = tree.x + radius * cos(angle);
+      let y = tree.y + radius * sin(angle) - random(20, 80);
+      birdList.push({
+        id: sp,
+        species: sp,
+        scientific: preset ? preset.scientific : '未知',
+        confidence: avgConf,
+        imgPath: imgPath,
+        imgElement: img,
+        audioPath: audioPath,
+        x: x, y: y,
+        baseX: x, baseY: y,
+        size: 36,
+        appearProgress: 0,
+        hover: false,
+        playing: false
+      });
+      if (audioPath) tree.audioMap.set(sp, audioPath);
+      i++;
+    }
+    tree.birds = birdList;
+  } else {
+    // 没有CSV时使用预置鸟作为演示
+    let birdList = [];
+    for (let sp of PRESET_SPECIES) {
+      let angle = random(-PI*0.7, 0);
+      let radius = random(80, 160);
+      let x = tree.x + radius * cos(angle);
+      let y = tree.y + radius * sin(angle) - random(20, 80);
+      let img = loadImage(sp.img, () => {}, () => {});
+      birdList.push({
+        id: sp.common,
+        species: sp.common,
+        scientific: sp.scientific,
+        confidence: sp.confidence,
+        imgPath: sp.img,
+        imgElement: img,
+        audioPath: sp.audioFile,
+        x: x, y: y,
+        baseX: x, baseY: y,
+        size: 36,
+        appearProgress: 0,
+        hover: false,
+        playing: false
+      });
+      if (sp.audioFile) tree.audioMap.set(sp.common, sp.audioFile);
+    }
+    tree.birds = birdList;
+  }
+  // 处理上传的音频文件（匹配物种）
+  for (let file of audioFilesList) {
+    let url = URL.createObjectURL(file);
+    let speciesHint = file.name.replace(/\.[^/.]+$/, '');
+    for (let bird of tree.birds) {
+      if (speciesHint.includes(bird.species) || bird.species.includes(speciesHint)) {
+        tree.audioMap.set(bird.species, url);
+        bird.audioPath = url;
+        break;
+      }
+    }
+  }
+  trees.push(tree);
+  addMapMarker(tree);
+  saveTreesToLocalStorage();
+  setCurrentTree(newId);
+  showToast(`新树“${name}”已创建！`);
 }
