@@ -10,21 +10,17 @@
   --text-muted: #6f6a5c;
 }
 
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
+* { margin: 0; padding: 0; box-sizing: border-box; }
 
 body {
   background: var(--bg-grain);
-  /* 【修改】增加了标准的中文字体族，确保所有设备上汉字显示统一、无锯齿 */
   font-family: 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', 'Segoe UI', Roboto, 'Helvetica Neue', Helvetica, sans-serif;
   color: var(--text-dark);
   line-height: 1.4;
   overflow-x: hidden;
 }
-/* 毛玻璃导航栏 */
+
+/* 导航栏 */
 .glass-nav {
   position: sticky;
   top: 0;
@@ -35,443 +31,176 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 1rem;
-  z-index: 100;
-  box-shadow: var(--shadow-sm);
-}
-
-.logo {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  font-weight: 500;
-}
-
-.logo .icon {
-  font-size: 1.8rem;
-  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1));
-}
-
-.logo .title {
-  font-size: 1.4rem;
-  letter-spacing: -0.3px;
-  background: linear-gradient(135deg, #1f5a38, #3f8b5e);
-  background-clip: text;
-  -webkit-background-clip: text;
-  color: transparent;
-}
-
-.badge {
-  background: rgba(43, 122, 75, 0.15);
-  padding: 0.2rem 0.6rem;
-  border-radius: 40px;
-  font-size: 0.7rem;
-  color: var(--accent-green);
-  font-weight: 500;
-}
-
-.controls {
-  display: flex;
-  gap: 0.8rem;
-  flex-wrap: wrap;
-  align-items: center;
-}
-
-.btn-icon, .btn-primary {
-  background: rgba(255, 255, 255, 0.9);
-  border: 1px solid rgba(0, 0, 0, 0.05);
-  padding: 0.5rem 1rem;
-  border-radius: 40px;
-  font-size: 0.85rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: 0.2s;
-  backdrop-filter: blur(4px);
-}
-
-.btn-icon:hover {
-  background: white;
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-sm);
-}
-
-.btn-primary {
-  background: var(--accent-green);
-  color: white;
-  border: none;
-  box-shadow: 0 2px 6px rgba(43, 122, 75, 0.3);
-}
-
-.btn-primary:hover {
-  background: #1e5f3d;
-  transform: scale(0.98);
-}
-
-/* 主布局 */
-.main-layout {
-  display: flex;
-  gap: 1rem;
-  padding: 1rem;
-  height: calc(100vh - 80px);
-}
-
-#canvas-area {
-  flex: 3;
-  position: relative;
-}
-
-.info-panel {
-  flex: 1.2;
-  background: rgba(255, 250, 240, 0.7);
-  backdrop-filter: blur(12px);
-  border-radius: 28px;
-  padding: 1rem;
-  box-shadow: var(--shadow-sm);
-  overflow-y: auto;
-}
-
-.panel-header h3 {
-  margin: 0 0 0.3rem;
-  font-size: 1.2rem;
-}
-
-.tree-list ul {
-  list-style: none;
-  padding: 0;
-  margin: 0.5rem 0;
-}
-
-.tree-list li {
-  background: rgba(255,255,240,0.6);
-  margin: 0.3rem 0;
-  padding: 0.5rem 0.8rem;
-  border-radius: 40px;
-  cursor: pointer;
-  transition: 0.1s;
-  font-size: 0.85rem;
-}
-
-.tree-list li.active {
-  background: var(--accent-green);
-  color: white;
-}
-
-.current-tree-actions {
-  margin-top: 1rem;
-  text-align: center;
-}
-
-/* 画布容器 */
-#canvas-container {
-  width: 100%;
-  height: 100%;
-  border-radius: 32px;
-  background: #eef0e3;
-  box-shadow: var(--shadow-lg), inset 0 0 0 1px rgba(255,255,240,0.5);
-  overflow: hidden;
-  position: relative;
-  background-image: url('banyan.png');  /* 请将榕树图片命名为 banyan.jpg 放在根目录 */
-  background-size: cover;
-  background-position: center 30%;
-  transition: filter 0.3s;
-}
-
-/* 浮窗 */
-/* 浮窗：改为明亮主题 */
-.leaf-popup {
-  position: fixed;
-  background: rgba(255, 255, 253, 0.95); /* 【修改】改为带有毛玻璃效果的暖白色 */
-  backdrop-filter: blur(16px);
-  border-radius: 28px;
-  padding: 1rem 1.2rem;
-  min-width: 260px;
-  max-width: 320px;
-  color: var(--text-dark); /* 【修改】全局深色文字 */
-  font-size: 0.85rem;
-  border: 1px solid rgba(0, 0, 0, 0.08); /* 【修改】边框改为浅灰色 */
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.15);
   z-index: 1000;
-  transition: opacity 0.2s;
-  pointer-events: auto;
 }
+.logo { display: flex; align-items: center; gap: 10px; font-weight: bold; font-size: 1.2rem; }
+.badge { font-size: 0.75rem; background: var(--accent-green); color: white; padding: 2px 8px; border-radius: 20px; font-weight: normal; }
+.controls { display: flex; gap: 12px; }
+button { padding: 0.6rem 1.2rem; border-radius: 40px; border: none; font-weight: 600; cursor: pointer; transition: 0.2s; }
+.btn-primary { background: var(--accent-green); color: white; }
+.btn-primary:hover { background: #22633c; transform: translateY(-1px); }
+.btn-outline { background: transparent; border: 1px solid var(--accent-green); color: var(--accent-green); }
+.btn-outline:hover { background: var(--accent-green); color: white; }
 
-.leaf-popup h4 {
-  font-size: 1.2rem;
-  font-weight: 600;
-  margin: 0 0 0.2rem;
-}
-
-.leaf-popup .sci-name {
-  font-family: monospace;
-  font-size: 0.7rem;
-  opacity: 0.7;
-  margin-bottom: 0.6rem;
-}
-
-.leaf-popup .meta {
+/* 主体布局：左(地图+树)、中(大树)、右(物种列表) */
+.main-content {
   display: flex;
-  gap: 0.8rem;
-  font-size: 0.75rem;
-  border-top: 1px solid rgba(0, 0, 0, 0.08); /* 【修改】分割线改为浅灰色 */
-  padding-top: 0.6rem;
-  margin-bottom: 0.8rem;
+  height: calc(100vh - 70px);
+  max-width: 1600px;
+  margin: 0 auto;
 }
 
-.leaf-popup .desc {
-  font-size: 0.8rem;
-  line-height: 1.4;
-  margin-bottom: 1rem;
-}
-
-.leaf-popup .controls {
+/* 左侧边栏 */
+.left-sidebar {
+  width: 320px;
+  background: white;
+  border-right: 1px solid rgba(0,0,0,0.05);
   display: flex;
-  gap: 0.6rem;
-  justify-content: flex-end;
+  flex-direction: column;
 }
-
-/* 按钮的背景和悬停效果也相应改为适配浅色底的样式 */
-.leaf-popup button, .leaf-popup a {
-  background: rgba(0, 0, 0, 0.05); 
-  border: none;
-  border-radius: 40px;
-  padding: 0.3rem 0.8rem;
-  color: var(--text-dark);
-  cursor: pointer;
-  text-decoration: none;
-  font-size: 0.75rem;
-  transition: 0.1s;
+.map-container { height: 250px; width: 100%; border-bottom: 1px solid rgba(0,0,0,0.05); }
+.tree-list-header { padding: 1rem; border-bottom: 1px solid rgba(0,0,0,0.05); }
+.tree-list { flex: 1; overflow-y: auto; list-style: none; padding: 0.5rem; }
+.tree-list li {
+  padding: 1rem; margin-bottom: 0.5rem; border-radius: 12px; cursor: pointer;
+  background: var(--bg-grain); border: 1px solid transparent; transition: 0.2s;
 }
+.tree-list li:hover { border-color: rgba(0,0,0,0.1); }
+.tree-list li.active { border-color: var(--accent-green); background: #f0fdf4; }
 
-
-
-.leaf-popup button:hover, .leaf-popup a:hover {
-  background: rgba(255,255,255,0.35);
-}
-
-.close-btn {
-  position: absolute;
-  top: 0.6rem;
-  right: 0.8rem;
-  background: transparent !important;
-  font-size: 1.2rem;
-  padding: 0 !important;
-  min-width: auto;
-  opacity: 0.6;
-}
-
-/* 模态框 */
-.modal {
-  display: none;
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0,0,0,0.6);
-  backdrop-filter: blur(8px);
-  z-index: 2000;
+/* 中间大树容器 */
+.tree-view {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  display: flex;
   align-items: center;
   justify-content: center;
 }
-
-.modal-content {
-  background: rgba(255, 250, 235, 0.98);
-  border-radius: 32px;
-  max-width: 500px;
-  width: 90%;
-  box-shadow: var(--shadow-lg);
-  overflow: hidden;
-  animation: fadeInUp 0.3s;
+.tree-container {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  /* 树的背景图，你可以换成自己的树干图 */
+  background: url('https://images.unsplash.com/photo-1596541604085-f53835f8e5d0?q=80&w=1200&auto=format&fit=crop') center/cover no-repeat;
+  opacity: 0.9;
 }
 
-.modal-header {
+/* 鸟的DOM节点 */
+.bird-element {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+  filter: drop-shadow(0 4px 6px rgba(0,0,0,0.1));
+}
+.bird-element:hover, .bird-element.highlighted {
+  transform: translate(-50%, -50%) scale(1.4);
+  filter: drop-shadow(0 0 16px var(--accent-amber));
+  z-index: 100;
+}
+
+/* 右侧物种列表 */
+.right-sidebar {
+  width: 280px;
+  background: white;
+  border-left: 1px solid rgba(0,0,0,0.05);
+  display: flex;
+  flex-direction: column;
+}
+.right-sidebar-header {
+  padding: 1rem;
+  border-bottom: 1px solid rgba(0,0,0,0.05);
+  font-weight: 600;
+  color: var(--accent-green);
+}
+.species-list {
+  flex: 1;
+  overflow-y: auto;
+  list-style: none;
+  padding: 0.5rem;
+}
+.species-list li {
+  padding: 0.8rem;
+  border-radius: 8px;
+  cursor: pointer;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 1.2rem 1.5rem;
-  border-bottom: 1px solid rgba(0,0,0,0.05);
+  transition: all 0.2s;
+  margin-bottom: 0.4rem;
+  font-size: 0.9rem;
+  border: 1px solid transparent;
 }
-
-.modal-header h2 {
-  font-size: 1.4rem;
+.species-list li:hover { background: rgba(0,0,0,0.02); }
+.species-list li.active {
+  background: #fdfaf3;
+  border-color: var(--accent-amber);
+  color: var(--accent-green);
   font-weight: 600;
-  margin: 0;
 }
 
-.modal-body {
-  padding: 1.5rem;
-  line-height: 1.5;
+/* 明亮风格弹窗浮窗 */
+.leaf-popup {
+  position: absolute;
+  background: rgba(255, 255, 253, 0.95);
+  backdrop-filter: blur(16px);
+  border-radius: 16px;
+  padding: 1rem 1.2rem;
+  min-width: 240px;
+  color: var(--text-dark);
+  font-size: 0.85rem;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: var(--shadow-lg);
+  z-index: 1000;
+  pointer-events: auto;
+  transform: translate(-50%, -120%);
 }
-
-.modal-body label {
-  display: block;
-  margin: 12px 0 6px;
-  font-weight: 500;
+.leaf-popup h4 { font-size: 1.1rem; font-weight: 600; margin: 0 0 0.2rem; }
+.leaf-popup .sci-name { font-family: monospace; font-size: 0.75rem; opacity: 0.6; margin-bottom: 0.6rem; }
+.leaf-popup button {
+  background: rgba(0, 0, 0, 0.05); border: none; border-radius: 40px;
+  padding: 0.4rem 0.8rem; color: var(--text-dark); cursor: pointer;
+  font-size: 0.75rem; transition: 0.1s; width: 100%;
 }
+.leaf-popup button:hover { background: rgba(0, 0, 0, 0.1); }
 
+/* 模态框 */
+.modal {
+  display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+  backdrop-filter: blur(5px); z-index: 2000; align-items: center; justify-content: center;
+}
+.modal-content {
+  background: white; width: 90%; max-width: 500px; border-radius: 20px; padding: 2rem;
+}
+.modal-header { display: flex; justify-content: space-between; margin-bottom: 1.5rem; }
+.modal-header h2 { font-size: 1.3rem; }
+.close-modal { background: none; color: #333; font-size: 1.5rem; padding: 0; }
+.modal-body label { display: block; margin-bottom: 1rem; font-size: 0.9rem; color: #555; }
 .modal-body input {
-  width: 100%;
-  padding: 8px;
-  border-radius: 12px;
-  border: 1px solid #ccc;
-  background: rgba(255,255,240,0.9);
+  width: 100%; padding: 0.8rem; margin-top: 0.5rem; border: 1px solid #ddd;
+  border-radius: 8px; font-family: inherit;
 }
+.modal-body button { width: 100%; margin-top: 1rem; padding: 1rem; }
 
-.close-modal {
-  background: none;
-  border: none;
-  font-size: 1.8rem;
-  cursor: pointer;
-  color: var(--text-muted);
+/* 底部关于项目 */
+.about-footer {
+  background: rgba(255, 255, 253, 0.85); border-top: 1px solid rgba(0, 0, 0, 0.08);
+  padding: 60px 20px; margin-top: 40px;
+}
+.about-container { max-width: 1200px; margin: 0 auto; display: flex; flex-wrap: wrap; gap: 40px; align-items: center; }
+.about-text { flex: 1 1 500px; }
+.about-text h2 { color: var(--accent-green); font-size: 1.8rem; margin-bottom: 16px; }
+.about-text p { color: #555; line-height: 1.7; margin-bottom: 12px; font-size: 0.95rem; }
+.about-images { flex: 1 1 400px; display: flex; gap: 20px; }
+.placeholder-img {
+  flex: 1; aspect-ratio: 4/3; background: rgba(0,0,0,0.03); border: 2px dashed rgba(0,0,0,0.15);
+  border-radius: 12px; display: flex; align-items: center; justify-content: center; color: #888;
 }
 
 /* Toast */
-#toast-root {
-  position: fixed;
-  bottom: 20px;
-  right: 20px;
-  z-index: 2000;
-}
-
+#toast-root { position: fixed; bottom: 20px; right: 20px; z-index: 3000; }
 .toast {
-  background: rgba(0,0,0,0.7);
-  backdrop-filter: blur(12px);
-  color: white;
-  padding: 0.5rem 1rem;
-  border-radius: 40px;
-  font-size: 0.8rem;
-  margin-top: 0.5rem;
-  animation: fadeOut 2s forwards;
-}
-
-/* 飞鸟动画 */
-@keyframes flyIn {
-  0% { transform: translate(0, 0) scale(0.6); opacity: 0; }
-  30% { opacity: 1; }
-  100% { transform: translate(var(--tx), var(--ty)) scale(1); opacity: 1; }
-}
-.flying-bird {
-  position: absolute;
-  width: 40px;
-  height: 40px;
-  background-size: contain;
-  background-repeat: no-repeat;
-  pointer-events: none;
-  z-index: 1000;
-  animation: flyIn 1.2s ease-out forwards;
-}
-
-@keyframes fadeOut {
-  0% { opacity: 1; transform: translateY(0); }
-  70% { opacity: 1; }
-  100% { opacity: 0; transform: translateY(-8px); visibility: hidden; }
-}
-
-@keyframes fadeInUp {
-  from { opacity: 0; transform: translateY(20px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-/* 响应式 */
-@media (max-width: 780px) {
-  .glass-nav {
-    flex-direction: column;
-    align-items: stretch;
-    padding: 0.8rem;
-  }
-  .controls {
-    justify-content: center;
-  }
-  .main-layout {
-    flex-direction: column;
-  }
-  .info-panel {
-    flex: none;
-    height: auto;
-  }
-  .leaf-popup {
-    left: 10px !important;
-    right: 10px !important;
-    width: auto;
-    max-width: none;
-  }
-}
-/* =========================================
-   关于项目 - 底部模块 (响应式)
-   ========================================= */
-.about-footer {
-  background: rgba(255, 255, 253, 0.85); /* 匹配你现有的暖白色系 */
-  border-top: 1px solid rgba(0, 0, 0, 0.08);
-  padding: 60px 20px;
-  margin-top: 40px;
-}
-
-.about-container {
-  max-width: 1200px;
-  margin: 0 auto;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 40px;
-  align-items: center;
-}
-
-.about-text {
-  flex: 1 1 500px; /* 占据至少 500px 宽度，空间不够时缩放 */
-}
-
-.about-text h2 {
-  margin-top: 0;
-  color: var(--primary-color, #2b7a4b);
-  font-size: 1.8rem;
-  margin-bottom: 16px;
-  font-weight: 600;
-}
-
-.about-text p {
-  color: #555;
-  line-height: 1.7;
-  margin-bottom: 12px;
-  font-size: 0.95rem;
-}
-
-.about-images {
-  flex: 1 1 400px;
-  display: flex;
-  gap: 20px;
-}
-
-/* 预留图片的占位符样式 */
-.placeholder-img {
-  flex: 1;
-  aspect-ratio: 4 / 3;
-  background: rgba(0, 0, 0, 0.03);
-  border: 2px dashed rgba(0, 0, 0, 0.15);
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  color: #888;
-  font-size: 0.9rem;
-  overflow: hidden;
-}
-
-/* 如果后续放入真实的 <img> 标签，保证其填满占位符 */
-.placeholder-img img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-/* 手机端响应式适配 */
-@media (max-width: 768px) {
-  .about-container {
-    flex-direction: column;
-    gap: 30px;
-  }
-  .about-text, .about-images {
-    flex: 1 1 100%;
-    width: 100%;
-  }
+  background: rgba(0,0,0,0.8); color: white; padding: 0.8rem 1.5rem;
+  border-radius: 40px; font-size: 0.9rem; margin-top: 0.5rem;
 }
