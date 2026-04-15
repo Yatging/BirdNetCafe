@@ -4,12 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>WingedIn · 翎英 | Linking Features and Future.</title>
-  <!-- Leaflet CSS & JS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <!-- p5.js -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/addons/p5.sound.min.js"></script>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -21,81 +17,89 @@
       <span class="badge">Linking Features and Future.</span>
     </div>
     <div class="controls">
-      <button id="aboutBtn" class="btn-icon">📖 关于项目</button>
+      <button id="resetBtn" class="btn-outline">🧹 重置</button>
       <button id="createTreeBtn" class="btn-primary">✨ 创建我的树</button>
-      <button id="enableAudioBtn" class="btn-icon">🔊 启用音频</button>
-      <button id="resetBtn" class="btn-icon">🔄 重置</button>
+      <button id="enableAudioBtn" class="btn-outline">🔊 启用音频</button>
     </div>
   </header>
 
-  <div class="main-layout">
-    <main id="canvas-area">
-      <div id="canvas-container"></div>
+  <div class="main-content">
+    <aside class="left-sidebar">
+      <div id="map" class="map-container"></div>
+      <div class="tree-list-header">
+        <h3>📍 已标记的榕树</h3>
+      </div>
+      <ul id="treeList" class="tree-list"></ul>
+    </aside>
+
+    <main class="tree-view">
+      <div id="tree-container" class="tree-container">
+        </div>
     </main>
-    <aside class="info-panel">
-      <div class="panel-header">
-        <h3>🌍 榕树地图</h3>
-        <p>点击树名切换</p>
-      </div>
-      <div id="map" style="height: 260px; border-radius: 20px; margin-bottom: 16px;"></div>
-      <div class="tree-list">
-        <h4>📌 我的树林</h4>
-        <ul id="tree-list"></ul>
-      </div>
-      <div class="current-tree-actions">
-        <button id="exportTreeBtn" class="btn-icon">💾 导出当前树</button>
-        <label class="btn-icon">📂 导入树文件<input type="file" id="importTreeFile" accept=".json" hidden></label>
-      </div>
+
+    <aside class="right-sidebar">
+      <div class="right-sidebar-header">🐦 树上的鸟类</div>
+      <ul id="species-list" class="species-list"></ul>
     </aside>
   </div>
 
-  <!-- 创建新树模态框 -->
   <div id="createTreeModal" class="modal">
     <div class="modal-content">
       <div class="modal-header">
         <h2>🌱 创建你的榕树</h2>
-        <button class="close-modal">&times;</button>
+        <button class="close-modal" onclick="document.getElementById('createTreeModal').style.display='none'">&times;</button>
       </div>
       <div class="modal-body">
-        <label>树的名字：<input type="text" id="newTreeName" placeholder="例如：城門水塘榕樹"></label>
-        <label>选择位置：<input type="text" id="newTreeCoords" placeholder="点击地图选取" readonly></label>
+        <label>树的名字：<input type="text" id="newTreeName" placeholder="例如：大窝坪道榕树"></label>
+        
+        <label>搜索地点：
+          <div style="display:flex; gap:8px; margin-top:5px;">
+            <input type="text" id="locSearchInput" placeholder="例如：城门水塘" style="flex:1; margin-top:0;">
+            <button type="button" id="locSearchBtn" class="btn-primary">搜索</button>
+          </div>
+        </label>
+        
+        <label style="margin-top: 10px;">选择位置 (点击地图)：
+          <input type="text" id="newTreeCoords" placeholder="点击下方地图选取" readonly>
+          <div id="modal-map-container" class="modal-map"></div>
+        </label>
+        
+        <label>自定义树木背景 (可选)：<input type="file" id="newTreeImg" accept="image/*"></label>
         <label>上传 BirdNET CSV：<input type="file" id="newTreeCSV" accept=".csv"></label>
-        <label>上传鸟鸣音频（可选，多文件）：<input type="file" id="newTreeAudio" accept="audio/*" multiple></label>
-        <button id="confirmCreateTree" class="btn-primary">确认创建</button>
+        <label>上传鸟鸣音频 (多选)：<input type="file" id="newTreeAudio" accept="audio/*" multiple></label>
+        
+        <button id="confirmCreateTree" class="btn-primary" style="margin-top: 15px; width: 100%; padding: 12px;">确认创建</button>
       </div>
     </div>
   </div>
 
-
+  <div id="aboutModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>🌿 WingedIn · 翎英</h2>
+        <button class="close-modal" onclick="document.getElementById('aboutModal').style.display='none'">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p><strong>项目简介</strong><br>将城市生态监测中的鸟类声纹数据，转化为一棵“会唱歌的榕树”。每片叶子代表一个鸟类物种，悬停叶片即可聆听其鸣声，查看科学记录。通过艺术化的交互，拉近公众与生物多样性保护的距离。</p>
+        <p style="margin-top:10px;"><strong>技术实现</strong><br>你可以上传来自 BirdNET 的 CSV 识别记录，并为它们配上真实的野外录音。本项目的所有数据均存储于本地浏览器，确保隐私安全。</p>
+      </div>
+    </div>
+  </div>
 
   <div id="toast-root"></div>
   <div id="popup-root"></div>
 </div>
-<script src="app.js"></script>
-</div>
 
-  <footer id="about-section" class="about-footer">
-    <div class="about-container">
-      <div class="about-text">
-        <h2>关于 BirdNetCafe · 翎英</h2>
-        <p>这是一个致力于将声学生态数据可视化的开源项目。我们希望通过这棵交互式的“生态树”，让城市中那些常被忽视的鸟鸣重新被人们“看见”与“听见”。</p>
-        <p>你可以上传来自 BirdNET 的 CSV 识别记录，并为它们配上真实的野外录音。本项目的所有数据均存储于本地浏览器，确保你的数据隐私安全。</p>
-        <p><strong>项目简介</strong><br>将城市生态监测中的鸟类声纹数据，转化为一棵“会唱歌的榕树”。每片叶子代表一个鸟类物种，悬停叶片即可聆听其鸣声，查看科学记录。通过艺术化的交互，拉近公众与生物多样性保护的距离。</p>
-        <p><strong>技术实现</strong><br>• BirdNET 声纹识别数据 → 叶片生成<br>• AFCD 香港鸟类名录 → 物种科普文本<br>• 用户上传音频 → 交互播放<br>• 基于 p5.js 的实时视觉反馈与飞鸟动画<br>• Leaflet 地图 + localStorage 多树管理</p>
-        <p><strong>致谢</strong><br>数据来源：BirdNET 社区、香港渔农自然护理署（AFCD）<br></p>
-      </div>
-      <div class="about-images">
-        <div class="placeholder-img">
-          <span>预留图片 1<br>(建议 4:3 比例)</span>
-        </div>
-        <div class="placeholder-img">
-          <span>预留图片 2<br>(建议 4:3 比例)</span>
-        </div>
-      </div>
+<footer id="about-section" class="about-footer">
+  <div class="about-container">
+    <div class="about-text">
+      <h2>关于 BirdNetCafe · 翎英</h2>
+      <p>这是一个致力于将声学生态数据可视化的开源项目。我们希望通过这棵交互式的“生态树”，让城市中那些常被忽视的鸟鸣重新被人们“看见”与“听见”，留存独属于你的城市记忆。</p>
+      <p>你可以上传来自 BirdNET 的 CSV 识别记录，并为它们配上真实的野外录音。本项目的所有数据均存储于本地浏览器，确保你的数据隐私安全。</p>
     </div>
-  </footer>
+  </div>
+</footer>
 
-</body>
-</html>
+<script src="app.js"></script>
 </body>
 </html>
