@@ -66,25 +66,36 @@
     </div>
   </div>
 
-  <!-- 关于模态框 -->
-  <div id="aboutModal" class="modal">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h2>🌿 WingedIn · 翎英 </h2>
-        <button class="close-modal">&times;</button>
-      </div>
-      <div class="modal-body">
-        <p><strong>项目简介</strong><br>将城市生态监测中的鸟类声纹数据，转化为一棵“会唱歌的榕树”。每片叶子代表一个鸟类物种，悬停叶片即可聆听其鸣声，查看科学记录。通过艺术化的交互，拉近公众与生物多样性保护的距离。</p>
-        <p><strong>技术实现</strong><br>• BirdNET 声纹识别数据 → 叶片生成<br>• AFCD 香港鸟类名录 → 物种科普文本<br>• 用户上传音频 → 交互播放<br>• 基于 p5.js 的实时视觉反馈与飞鸟动画<br>• Leaflet 地图 + localStorage 多树管理</p>
-        <p><strong>致谢</strong><br>数据来源：BirdNET 社区、香港渔农自然护理署（AFCD）<br></p>
-        <p class="small">版本 1.0 · 翎英社区预览版</p>
-      </div>
-    </div>
-  </div>
+
 
   <div id="toast-root"></div>
   <div id="popup-root"></div>
 </div>
 <script src="app.js"></script>
+</div>
+
+  <footer id="about-section" class="about-footer">
+    <div class="about-container">
+      <div class="about-text">
+        <h2>关于 BirdNetCafe · 翎英</h2>
+        <p>这是一个致力于将声学生态数据可视化的开源项目。我们希望通过这棵交互式的“生态树”，让城市中那些常被忽视的鸟鸣重新被人们“看见”与“听见”。</p>
+        <p>你可以上传来自 BirdNET 的 CSV 识别记录，并为它们配上真实的野外录音。本项目的所有数据均存储于本地浏览器，确保你的数据隐私安全。</p>
+        <p><strong>项目简介</strong><br>将城市生态监测中的鸟类声纹数据，转化为一棵“会唱歌的榕树”。每片叶子代表一个鸟类物种，悬停叶片即可聆听其鸣声，查看科学记录。通过艺术化的交互，拉近公众与生物多样性保护的距离。</p>
+        <p><strong>技术实现</strong><br>• BirdNET 声纹识别数据 → 叶片生成<br>• AFCD 香港鸟类名录 → 物种科普文本<br>• 用户上传音频 → 交互播放<br>• 基于 p5.js 的实时视觉反馈与飞鸟动画<br>• Leaflet 地图 + localStorage 多树管理</p>
+        <p><strong>致谢</strong><br>数据来源：BirdNET 社区、香港渔农自然护理署（AFCD）<br></p>
+      </div>
+      <div class="about-images">
+        <div class="placeholder-img">
+          <span>预留图片 1<br>(建议 4:3 比例)</span>
+        </div>
+        <div class="placeholder-img">
+          <span>预留图片 2<br>(建议 4:3 比例)</span>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+</body>
+</html>
 </body>
 </html>

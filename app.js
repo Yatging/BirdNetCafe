@@ -599,13 +599,20 @@ async function createNewTree(name, lat, lng, csvFile, audioFilesList, customTree
     renderBirdsDOM();
   }
   
+  // 【优化】升级音频文件的匹配逻辑：同时检测中文名和学名，且忽略大小写
   for (let file of audioFilesList) {
     let url = URL.createObjectURL(file);
-    let speciesHint = file.name.replace(/\.[^/.]+$/, '');
+    let fileName = file.name.replace(/\.[^/.]+$/, '').toLowerCase(); // 去除后缀并转小写
+    
     for (let bird of tree.birds) {
-      if (speciesHint.includes(bird.species) || bird.species.includes(speciesHint)) {
+      let common = (bird.species || '').toLowerCase();
+      let sci = (bird.scientific || '').toLowerCase();
+      
+      if (fileName.includes(common) || common.includes(fileName) || 
+          fileName.includes(sci) || sci.includes(fileName)) {
         tree.audioMap.set(bird.species, url);
-        bird.audioPath = url; break;
+        bird.audioPath = url; 
+        break; // 匹配成功，跳到下一个音频文件
       }
     }
   }

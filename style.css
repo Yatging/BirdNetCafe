@@ -397,3 +397,81 @@ body {
     max-width: none;
   }
 }
+/* =========================================
+   关于项目 - 底部模块 (响应式)
+   ========================================= */
+.about-footer {
+  background: rgba(255, 255, 253, 0.85); /* 匹配你现有的暖白色系 */
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+  padding: 60px 20px;
+  margin-top: 40px;
+}
+
+.about-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 40px;
+  align-items: center;
+}
+
+.about-text {
+  flex: 1 1 500px; /* 占据至少 500px 宽度，空间不够时缩放 */
+}
+
+.about-text h2 {
+  margin-top: 0;
+  color: var(--primary-color, #2b7a4b);
+  font-size: 1.8rem;
+  margin-bottom: 16px;
+  font-weight: 600;
+}
+
+.about-text p {
+  color: #555;
+  line-height: 1.7;
+  margin-bottom: 12px;
+  font-size: 0.95rem;
+}
+
+.about-images {
+  flex: 1 1 400px;
+  display: flex;
+  gap: 20px;
+}
+
+/* 预留图片的占位符样式 */
+.placeholder-img {
+  flex: 1;
+  aspect-ratio: 4 / 3;
+  background: rgba(0, 0, 0, 0.03);
+  border: 2px dashed rgba(0, 0, 0, 0.15);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: #888;
+  font-size: 0.9rem;
+  overflow: hidden;
+}
+
+/* 如果后续放入真实的 <img> 标签，保证其填满占位符 */
+.placeholder-img img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* 手机端响应式适配 */
+@media (max-width: 768px) {
+  .about-container {
+    flex-direction: column;
+    gap: 30px;
+  }
+  .about-text, .about-images {
+    flex: 1 1 100%;
+    width: 100%;
+  }
+}
