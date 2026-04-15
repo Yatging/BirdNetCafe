@@ -1,13 +1,20 @@
 /* 全局设计 token */
 :root {
   --bg-grain: #fef6e8;
+  --card-glass: rgba(255, 245, 235, 0.92);
+  --shadow-sm: 0 8px 20px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 20px 40px rgba(0, 0, 0, 0.1);
   --accent-green: #2b7a4b;
   --accent-amber: #d9a13b;
   --text-dark: #2c2a24;
-  --shadow-lg: 0 20px 40px rgba(0, 0, 0, 0.15);
+  --text-muted: #6f6a5c;
 }
 
-* { margin: 0; padding: 0; box-sizing: border-box; }
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
 
 body {
   background: var(--bg-grain);
@@ -17,93 +24,471 @@ body {
   overflow-x: hidden;
 }
 
-/* 导航栏 */
+/* 毛玻璃导航栏 */
 .glass-nav {
-  height: 70px; display: flex; justify-content: space-between; align-items: center;
-  padding: 0 2rem; background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(10px);
-  border-bottom: 1px solid rgba(0,0,0,0.05); z-index: 1000; position: sticky; top: 0;
-}
-.logo { font-weight: bold; font-size: 1.2rem; display: flex; align-items: center; gap: 8px; }
-.logo .badge { font-size: 0.8rem; color: #888; font-weight: normal; }
-.controls { display: flex; gap: 10px; }
-
-/* 侧边与中间内容 */
-.main-content { display: flex; height: calc(100vh - 70px); }
-.left-sidebar { width: 300px; background: white; border-right: 1px solid #eee; display: flex; flex-direction: column; z-index: 10;}
-.map-container { height: 250px; flex-shrink: 0; }
-.tree-list-header { padding: 15px; border-bottom: 1px solid #eee; font-weight: bold; }
-.tree-list { flex: 1; overflow-y: auto; list-style: none; padding: 10px; }
-.tree-list li { padding: 15px; margin-bottom: 8px; border-radius: 10px; background: #fafafa; cursor: pointer; border: 1px solid transparent; transition: 0.2s;}
-.tree-list li:hover { background: #f0f0f0; }
-.tree-list li.active { background: #f0fdf4; border-color: var(--accent-green); font-weight: bold; }
-
-.tree-view { flex: 1; background: #e8e4d9; position: relative; overflow: hidden; }
-.tree-container {
-  width: 100%; height: 100%;
-  background-size: cover; background-position: center bottom; background-repeat: no-repeat;
-  transition: background-image 0.5s ease-in-out;
+  position: sticky;
+  top: 0;
+  backdrop-filter: blur(20px);
+  background: rgba(255, 250, 240, 0.85);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  padding: 0.8rem 2rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+  z-index: 100;
+  box-shadow: var(--shadow-sm);
 }
 
-/* 右侧：鸟类列表 */
-.right-sidebar { width: 280px; background: white; border-left: 1px solid #eee; display: flex; flex-direction: column; z-index: 10;}
-.right-sidebar-header { padding: 15px; border-bottom: 1px solid #eee; font-weight: bold; }
-.species-list { flex: 1; overflow-y: auto; list-style: none; padding: 10px; }
-.species-list li { padding: 12px 10px; border-radius: 8px; cursor: pointer; margin-bottom: 5px; font-size: 0.95rem; display: flex; justify-content: space-between; align-items: center; border: 1px solid transparent;}
-.species-list li:hover { background: #f9f9f9; }
-.species-list li.active { background: #fdfaf3; color: var(--accent-green); font-weight: bold; border-color: var(--accent-amber); }
-
-/* 鸟类交互 DOM */
-.bird-node {
-  position: absolute; transform: translate(-50%, -50%) scale(0);
-  opacity: 0; border-radius: 50%; cursor: pointer;
-  box-shadow: 0 4px 10px rgba(0,0,0,0.3); transition: 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-  z-index: 10; background-color: transparent; display: flex; align-items: center; justify-content: center;
-  animation: birdPopIn 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-weight: 500;
 }
-.bird-node:hover, .bird-node.highlighted {
-  transform: translate(-50%, -50%) scale(1.4);
-  box-shadow: 0 0 0 3px #fff, 0 8px 20px rgba(0,0,0,0.4); z-index: 100;
-}
-.bird-node img { width: 100%; height: 100%; object-fit: contain; border-radius: 50%; pointer-events: none; display: block; }
-.bird-fallback { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: linear-gradient(135deg, #4CAF50, #2E7D32); color: white; font-weight: bold; }
-@keyframes birdPopIn { to { transform: translate(-50%, -50%) scale(1); opacity: 1; } }
 
-/* 带有缩略图的 Wiki 浮窗 (白底深字) */
+.logo .icon {
+  font-size: 1.8rem;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1));
+}
+
+.logo .title {
+  font-size: 1.4rem;
+  letter-spacing: -0.3px;
+  background: linear-gradient(135deg, #1f5a38, #3f8b5e);
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+}
+
+.badge {
+  background: rgba(43, 122, 75, 0.15);
+  padding: 0.2rem 0.6rem;
+  border-radius: 40px;
+  font-size: 0.7rem;
+  color: var(--accent-green);
+  font-weight: 500;
+}
+
+.controls {
+  display: flex;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.btn-icon, .btn-primary {
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  padding: 0.5rem 1rem;
+  border-radius: 40px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: 0.2s;
+  backdrop-filter: blur(4px);
+}
+
+.btn-icon:hover {
+  background: white;
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
+}
+
+.btn-primary {
+  background: var(--accent-green);
+  color: white;
+  border: none;
+  box-shadow: 0 2px 6px rgba(43, 122, 75, 0.3);
+}
+
+.btn-primary:hover {
+  background: #1e5f3d;
+  transform: scale(0.98);
+}
+
+/* 主布局 */
+.main-layout {
+  display: flex;
+  gap: 1rem;
+  padding: 1rem;
+  height: calc(100vh - 80px);
+}
+
+#canvas-area {
+  flex: 3;
+  position: relative;
+}
+
+.info-panel {
+  flex: 1.2;
+  background: rgba(255, 250, 240, 0.7);
+  backdrop-filter: blur(12px);
+  border-radius: 28px;
+  padding: 1rem;
+  box-shadow: var(--shadow-sm);
+  overflow-y: auto;
+}
+
+.panel-header h3 {
+  margin: 0 0 0.3rem;
+  font-size: 1.2rem;
+}
+
+.tree-list ul {
+  list-style: none;
+  padding: 0;
+  margin: 0.5rem 0;
+}
+
+.tree-list li {
+  background: rgba(255,255,240,0.6);
+  margin: 0.3rem 0;
+  padding: 0.5rem 0.8rem;
+  border-radius: 40px;
+  cursor: pointer;
+  transition: 0.1s;
+  font-size: 0.85rem;
+}
+
+.tree-list li.active {
+  background: var(--accent-green);
+  color: white;
+}
+
+/* 鸟类列表样式 */
+#bird-species-list li {
+  padding: 6px 12px;
+  margin: 4px 0;
+  background: rgba(255,255,240,0.5);
+  border-radius: 30px;
+  cursor: pointer;
+  transition: background 0.15s;
+  font-size: 0.9rem;
+}
+
+#bird-species-list li:hover {
+  background: var(--accent-green);
+  color: white;
+}
+
+.current-tree-actions {
+  margin-top: 1rem;
+  text-align: center;
+}
+
+/* 画布容器 */
+#canvas-container {
+  width: 100%;
+  height: 100%;
+  border-radius: 32px;
+  background: #eef0e3;
+  box-shadow: var(--shadow-lg), inset 0 0 0 1px rgba(255,255,240,0.5);
+  overflow: hidden;
+  position: relative;
+  background-image: url('banyan.png');
+  background-size: cover;
+  background-position: center 30%;
+  transition: filter 0.3s;
+}
+
+/* 浮窗：明亮主题 */
 .leaf-popup {
-  position: absolute; background: rgba(255, 255, 253, 0.95); backdrop-filter: blur(16px);
-  border-radius: 16px; padding: 15px; width: 280px; box-shadow: var(--shadow-lg);
-  z-index: 2000; border: 1px solid rgba(0,0,0,0.08); pointer-events: auto;
-  transform: translate(-50%, -110%); color: var(--text-dark);
+  position: fixed;
+  background: rgba(255, 255, 253, 0.95);
+  backdrop-filter: blur(16px);
+  border-radius: 28px;
+  padding: 1rem 1.2rem;
+  min-width: 260px;
+  max-width: 320px;
+  color: var(--text-dark);
+  font-size: 0.85rem;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
+  transition: opacity 0.2s;
+  pointer-events: auto;
 }
-.leaf-popup .wiki-btn {
-  display: block; width: 100%; padding: 8px; background: rgba(0,0,0,0.05); text-align: center;
-  border-radius: 8px; text-decoration: none; color: var(--text-dark); font-size: 0.85rem;
-  margin-top: 10px; transition: 0.2s; font-weight: bold;
+
+.leaf-popup h4 {
+  font-size: 1.2rem;
+  font-weight: 600;
+  margin: 0 0 0.2rem;
 }
-.leaf-popup .wiki-btn:hover { background: rgba(0,0,0,0.1); }
 
-/* 模态框修复 */
-.modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 3000; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
-.modal-content { background: white; padding: 25px; border-radius: 16px; width: 90%; max-width: 450px; box-shadow: var(--shadow-lg); max-height: 90vh; overflow-y: auto;}
-.modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
-.close-modal { background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #888; }
-.modal-body label { display: block; margin-bottom: 10px; font-size: 0.9rem; font-weight: bold; color: #444; }
-.modal-body input[type="text"], .modal-body input[type="file"] { width: 100%; padding: 8px; margin-top: 5px; border: 1px solid #ccc; border-radius: 6px; font-family: inherit; }
-.modal-map { height: 180px; margin-top: 10px; border-radius: 8px; border: 1px solid #ccc; width: 100%; }
+.leaf-popup .sci-name {
+  font-family: monospace;
+  font-size: 0.7rem;
+  opacity: 0.7;
+  margin-bottom: 0.6rem;
+}
 
-/* 通用组件 */
-button { border: none; padding: 8px 16px; border-radius: 20px; cursor: pointer; font-weight: 600; font-family: inherit; transition: 0.2s; }
-.btn-primary { background: var(--accent-green); color: white; }
-.btn-primary:hover { background: #1f5e38; }
-.btn-outline { background: white; border: 1px solid #ddd; color: #555; }
-.btn-outline:hover { background: #f5f5f5; }
+.leaf-popup .meta {
+  display: flex;
+  gap: 0.8rem;
+  font-size: 0.75rem;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+  padding-top: 0.6rem;
+  margin-bottom: 0.8rem;
+}
+
+.leaf-popup .desc {
+  font-size: 0.8rem;
+  line-height: 1.4;
+  margin-bottom: 1rem;
+}
+
+.leaf-popup .controls {
+  display: flex;
+  gap: 0.6rem;
+  justify-content: flex-end;
+}
+
+.leaf-popup button, .leaf-popup a {
+  background: rgba(0, 0, 0, 0.05);
+  border: none;
+  border-radius: 40px;
+  padding: 0.3rem 0.8rem;
+  color: var(--text-dark);
+  cursor: pointer;
+  text-decoration: none;
+  font-size: 0.75rem;
+  transition: 0.1s;
+}
+
+.leaf-popup button:hover, .leaf-popup a:hover {
+  background: rgba(0,0,0,0.1);
+}
+
+.close-btn {
+  position: absolute;
+  top: 0.6rem;
+  right: 0.8rem;
+  background: transparent !important;
+  font-size: 1.2rem;
+  padding: 0 !important;
+  min-width: auto;
+  opacity: 0.6;
+}
+
+/* 模态框 */
+.modal {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0,0,0,0.6);
+  backdrop-filter: blur(8px);
+  z-index: 2000;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-content {
+  background: rgba(255, 250, 235, 0.98);
+  border-radius: 32px;
+  max-width: 500px;
+  width: 90%;
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+  animation: fadeInUp 0.3s;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.2rem 1.5rem;
+  border-bottom: 1px solid rgba(0,0,0,0.05);
+}
+
+.modal-header h2 {
+  font-size: 1.4rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.modal-body {
+  padding: 1.5rem;
+  line-height: 1.5;
+}
+
+.modal-body label {
+  display: block;
+  margin: 12px 0 6px;
+  font-weight: 500;
+}
+
+.modal-body input {
+  width: 100%;
+  padding: 8px;
+  border-radius: 12px;
+  border: 1px solid #ccc;
+  background: rgba(255,255,240,0.9);
+}
+
+.close-modal {
+  background: none;
+  border: none;
+  font-size: 1.8rem;
+  cursor: pointer;
+  color: var(--text-muted);
+}
 
 /* Toast */
-#toast-root { position: fixed; bottom: 20px; right: 20px; z-index: 4000; }
-.toast { background: #333; color: white; padding: 10px 20px; border-radius: 30px; margin-top: 10px; font-size: 0.9rem; }
+#toast-root {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 2000;
+}
 
-/* 底部关于区域 */
-.about-footer { background: rgba(255, 255, 253, 0.85); border-top: 1px solid rgba(0, 0, 0, 0.08); padding: 40px 20px; }
-.about-container { max-width: 1000px; margin: 0 auto; }
-.about-text h2 { color: var(--accent-green); font-size: 1.5rem; margin-bottom: 16px; }
-.about-text p { color: #555; line-height: 1.7; margin-bottom: 12px; font-size: 0.95rem; }
+.toast {
+  background: rgba(0,0,0,0.7);
+  backdrop-filter: blur(12px);
+  color: white;
+  padding: 0.5rem 1rem;
+  border-radius: 40px;
+  font-size: 0.8rem;
+  margin-top: 0.5rem;
+  animation: fadeOut 2s forwards;
+}
+
+/* 飞鸟动画 */
+@keyframes flyIn {
+  0% { transform: translate(0, 0) scale(0.6); opacity: 0; }
+  30% { opacity: 1; }
+  100% { transform: translate(var(--tx), var(--ty)) scale(1); opacity: 1; }
+}
+
+.flying-bird {
+  position: absolute;
+  width: 40px;
+  height: 40px;
+  background-size: contain;
+  background-repeat: no-repeat;
+  pointer-events: none;
+  z-index: 1000;
+  animation: flyIn 1.2s ease-out forwards;
+}
+
+@keyframes fadeOut {
+  0% { opacity: 1; transform: translateY(0); }
+  70% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(-8px); visibility: hidden; }
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* 鸟节点高亮效果 */
+.bird-node.bird-highlight {
+  box-shadow: 0 0 0 4px #ffb347, 0 8px 20px rgba(0,0,0,0.3);
+  z-index: 30;
+  transform: translate(-50%, -50%) scale(1.1) !important;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+/* 响应式 */
+@media (max-width: 780px) {
+  .glass-nav {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 0.8rem;
+  }
+  .controls {
+    justify-content: center;
+  }
+  .main-layout {
+    flex-direction: column;
+  }
+  .info-panel {
+    flex: none;
+    height: auto;
+  }
+  .leaf-popup {
+    left: 10px !important;
+    right: 10px !important;
+    width: auto;
+    max-width: none;
+  }
+}
+
+/* 关于项目 - 底部模块 */
+.about-footer {
+  background: rgba(255, 255, 253, 0.85);
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+  padding: 60px 20px;
+  margin-top: 40px;
+}
+
+.about-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 40px;
+  align-items: center;
+}
+
+.about-text {
+  flex: 1 1 500px;
+}
+
+.about-text h2 {
+  margin-top: 0;
+  color: var(--primary-color, #2b7a4b);
+  font-size: 1.8rem;
+  margin-bottom: 16px;
+  font-weight: 600;
+}
+
+.about-text p {
+  color: #555;
+  line-height: 1.7;
+  margin-bottom: 12px;
+  font-size: 0.95rem;
+}
+
+.about-images {
+  flex: 1 1 400px;
+  display: flex;
+  gap: 20px;
+}
+
+.placeholder-img {
+  flex: 1;
+  aspect-ratio: 4 / 3;
+  background: rgba(0, 0, 0, 0.03);
+  border: 2px dashed rgba(0, 0, 0, 0.15);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: #888;
+  font-size: 0.9rem;
+  overflow: hidden;
+}
+
+.placeholder-img img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+@media (max-width: 768px) {
+  .about-container {
+    flex-direction: column;
+    gap: 30px;
+  }
+  .about-text, .about-images {
+    flex: 1 1 100%;
+    width: 100%;
+  }
+}
