@@ -1,206 +1,82 @@
-/* 全局设计 token */
 :root {
   --bg-grain: #fef6e8;
-  --card-glass: rgba(255, 245, 235, 0.92);
-  --shadow-sm: 0 8px 20px rgba(0, 0, 0, 0.06);
-  --shadow-lg: 0 20px 40px rgba(0, 0, 0, 0.1);
   --accent-green: #2b7a4b;
   --accent-amber: #d9a13b;
   --text-dark: #2c2a24;
-  --text-muted: #6f6a5c;
+  --shadow-lg: 0 20px 40px rgba(0, 0, 0, 0.15);
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: var(--bg-grain); font-family: 'PingFang SC', sans-serif; color: var(--text-dark); overflow: hidden; }
 
-body {
-  background: var(--bg-grain);
-  font-family: 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', 'Segoe UI', Roboto, 'Helvetica Neue', Helvetica, sans-serif;
-  color: var(--text-dark);
-  line-height: 1.4;
-  overflow-x: hidden;
-}
-
-/* 导航栏 */
 .glass-nav {
-  position: sticky;
-  top: 0;
-  backdrop-filter: blur(20px);
-  background: rgba(255, 250, 240, 0.85);
-  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
-  padding: 0.8rem 2rem;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  z-index: 1000;
+  height: 70px; display: flex; justify-content: space-between; align-items: center;
+  padding: 0 2rem; background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(10px);
+  border-bottom: 1px solid rgba(0,0,0,0.05); z-index: 1000;
 }
-.logo { display: flex; align-items: center; gap: 10px; font-weight: bold; font-size: 1.2rem; }
-.badge { font-size: 0.75rem; background: var(--accent-green); color: white; padding: 2px 8px; border-radius: 20px; font-weight: normal; }
-.controls { display: flex; gap: 12px; }
-button { padding: 0.6rem 1.2rem; border-radius: 40px; border: none; font-weight: 600; cursor: pointer; transition: 0.2s; }
-.btn-primary { background: var(--accent-green); color: white; }
-.btn-primary:hover { background: #22633c; transform: translateY(-1px); }
-.btn-outline { background: transparent; border: 1px solid var(--accent-green); color: var(--accent-green); }
-.btn-outline:hover { background: var(--accent-green); color: white; }
+.controls { display: flex; gap: 10px; }
 
-/* 主体布局：左(地图+树)、中(大树)、右(物种列表) */
-.main-content {
-  display: flex;
-  height: calc(100vh - 70px);
-  max-width: 1600px;
-  margin: 0 auto;
-}
+.main-content { display: flex; height: calc(100vh - 70px); }
 
-/* 左侧边栏 */
-.left-sidebar {
-  width: 320px;
-  background: white;
-  border-right: 1px solid rgba(0,0,0,0.05);
-  display: flex;
-  flex-direction: column;
-}
-.map-container { height: 250px; width: 100%; border-bottom: 1px solid rgba(0,0,0,0.05); }
-.tree-list-header { padding: 1rem; border-bottom: 1px solid rgba(0,0,0,0.05); }
-.tree-list { flex: 1; overflow-y: auto; list-style: none; padding: 0.5rem; }
-.tree-list li {
-  padding: 1rem; margin-bottom: 0.5rem; border-radius: 12px; cursor: pointer;
-  background: var(--bg-grain); border: 1px solid transparent; transition: 0.2s;
-}
-.tree-list li:hover { border-color: rgba(0,0,0,0.1); }
-.tree-list li.active { border-color: var(--accent-green); background: #f0fdf4; }
+/* 左侧 */
+.left-sidebar { width: 300px; background: white; border-right: 1px solid #eee; display: flex; flex-direction: column; }
+.map-container { height: 200px; }
+.tree-list { flex: 1; overflow-y: auto; list-style: none; padding: 10px; }
+.tree-list li { padding: 15px; margin-bottom: 8px; border-radius: 10px; background: #fafafa; cursor: pointer; border: 1px solid transparent; }
+.tree-list li.active { background: #f0fdf4; border-color: var(--accent-green); font-weight: bold; }
 
-/* 中间大树容器 */
-.tree-view {
-  flex: 1;
-  position: relative;
-  overflow: hidden;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
+/* 中间：榕树视图 */
+.tree-view { flex: 1; background: #e8e4d9; position: relative; overflow: hidden; }
 .tree-container {
-  width: 100%;
-  height: 100%;
-  position: relative;
-  /* 树的背景图，你可以换成自己的树干图 */
-  background: url('https://images.unsplash.com/photo-1596541604085-f53835f8e5d0?q=80&w=1200&auto=format&fit=crop') center/cover no-repeat;
-  opacity: 0.9;
+  width: 100%; height: 100%;
+  background-size: cover; background-position: center;
+  background-repeat: no-repeat;
+  transition: background-image 0.5s ease-in-out;
 }
 
-/* 鸟的DOM节点 */
+/* 鸟类元素 */
 .bird-element {
-  position: absolute;
-  transform: translate(-50%, -50%);
-  cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
-  filter: drop-shadow(0 4px 6px rgba(0,0,0,0.1));
+  position: absolute; transform: translate(-50%, -50%);
+  cursor: pointer; transition: 0.3s; z-index: 10;
 }
 .bird-element:hover, .bird-element.highlighted {
-  transform: translate(-50%, -50%) scale(1.4);
-  filter: drop-shadow(0 0 16px var(--accent-amber));
+  transform: translate(-50%, -50%) scale(1.3);
+  filter: drop-shadow(0 0 12px var(--accent-amber));
   z-index: 100;
 }
 
-/* 右侧物种列表 */
-.right-sidebar {
-  width: 280px;
-  background: white;
-  border-left: 1px solid rgba(0,0,0,0.05);
-  display: flex;
-  flex-direction: column;
-}
-.right-sidebar-header {
-  padding: 1rem;
-  border-bottom: 1px solid rgba(0,0,0,0.05);
-  font-weight: 600;
-  color: var(--accent-green);
-}
-.species-list {
-  flex: 1;
-  overflow-y: auto;
-  list-style: none;
-  padding: 0.5rem;
-}
-.species-list li {
-  padding: 0.8rem;
-  border-radius: 8px;
-  cursor: pointer;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  transition: all 0.2s;
-  margin-bottom: 0.4rem;
-  font-size: 0.9rem;
-  border: 1px solid transparent;
-}
-.species-list li:hover { background: rgba(0,0,0,0.02); }
-.species-list li.active {
-  background: #fdfaf3;
-  border-color: var(--accent-amber);
-  color: var(--accent-green);
-  font-weight: 600;
-}
+/* 右侧 */
+.right-sidebar { width: 260px; background: white; border-left: 1px solid #eee; }
+.right-sidebar-header { padding: 15px; border-bottom: 1px solid #eee; font-weight: bold; }
+.species-list { list-style: none; padding: 10px; }
+.species-list li { padding: 10px; border-radius: 8px; cursor: pointer; margin-bottom: 5px; font-size: 0.9rem; }
+.species-list li.active { background: #fdfaf3; color: var(--accent-green); font-weight: bold; border-left: 4px solid var(--accent-amber); }
 
-/* 明亮风格弹窗浮窗 */
+/* 恢复上一个版本的明亮浮窗 */
 .leaf-popup {
-  position: absolute;
-  background: rgba(255, 255, 253, 0.95);
-  backdrop-filter: blur(16px);
-  border-radius: 16px;
-  padding: 1rem 1.2rem;
-  min-width: 240px;
-  color: var(--text-dark);
-  font-size: 0.85rem;
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  box-shadow: var(--shadow-lg);
-  z-index: 1000;
-  pointer-events: auto;
-  transform: translate(-50%, -120%);
+  position: absolute; background: white; border-radius: 12px;
+  padding: 15px; min-width: 200px; box-shadow: var(--shadow-lg);
+  z-index: 2000; border: 1px solid rgba(0,0,0,0.05);
+  pointer-events: auto; transform: translate(-50%, -110%);
+  animation: popupIn 0.2s ease-out;
 }
-.leaf-popup h4 { font-size: 1.1rem; font-weight: 600; margin: 0 0 0.2rem; }
-.leaf-popup .sci-name { font-family: monospace; font-size: 0.75rem; opacity: 0.6; margin-bottom: 0.6rem; }
-.leaf-popup button {
-  background: rgba(0, 0, 0, 0.05); border: none; border-radius: 40px;
-  padding: 0.4rem 0.8rem; color: var(--text-dark); cursor: pointer;
-  font-size: 0.75rem; transition: 0.1s; width: 100%;
-}
-.leaf-popup button:hover { background: rgba(0, 0, 0, 0.1); }
+@keyframes popupIn { from { opacity: 0; transform: translate(-50%, -100%); } to { opacity: 1; transform: translate(-50%, -110%); } }
 
-/* 模态框 */
-.modal {
-  display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5);
-  backdrop-filter: blur(5px); z-index: 2000; align-items: center; justify-content: center;
-}
-.modal-content {
-  background: white; width: 90%; max-width: 500px; border-radius: 20px; padding: 2rem;
-}
-.modal-header { display: flex; justify-content: space-between; margin-bottom: 1.5rem; }
-.modal-header h2 { font-size: 1.3rem; }
-.close-modal { background: none; color: #333; font-size: 1.5rem; padding: 0; }
-.modal-body label { display: block; margin-bottom: 1rem; font-size: 0.9rem; color: #555; }
-.modal-body input {
-  width: 100%; padding: 0.8rem; margin-top: 0.5rem; border: 1px solid #ddd;
-  border-radius: 8px; font-family: inherit;
-}
-.modal-body button { width: 100%; margin-top: 1rem; padding: 1rem; }
-
-/* 底部关于项目 */
-.about-footer {
-  background: rgba(255, 255, 253, 0.85); border-top: 1px solid rgba(0, 0, 0, 0.08);
-  padding: 60px 20px; margin-top: 40px;
-}
-.about-container { max-width: 1200px; margin: 0 auto; display: flex; flex-wrap: wrap; gap: 40px; align-items: center; }
-.about-text { flex: 1 1 500px; }
-.about-text h2 { color: var(--accent-green); font-size: 1.8rem; margin-bottom: 16px; }
-.about-text p { color: #555; line-height: 1.7; margin-bottom: 12px; font-size: 0.95rem; }
-.about-images { flex: 1 1 400px; display: flex; gap: 20px; }
-.placeholder-img {
-  flex: 1; aspect-ratio: 4/3; background: rgba(0,0,0,0.03); border: 2px dashed rgba(0,0,0,0.15);
-  border-radius: 12px; display: flex; align-items: center; justify-content: center; color: #888;
+.leaf-popup h4 { color: var(--accent-green); margin-bottom: 4px; }
+.leaf-popup .sci { font-size: 0.8rem; font-style: italic; color: #888; margin-bottom: 10px; display: block; }
+.leaf-popup .conf-bar { height: 4px; background: #eee; border-radius: 2px; margin: 10px 0; overflow: hidden; }
+.leaf-popup .conf-fill { height: 100%; background: var(--accent-amber); }
+.leaf-popup .ebird-btn {
+  display: block; width: 100%; padding: 8px; background: #f0f0f0;
+  text-align: center; border-radius: 6px; text-decoration: none;
+  color: #555; font-size: 0.8rem; margin-top: 10px;
 }
 
-/* Toast */
-#toast-root { position: fixed; bottom: 20px; right: 20px; z-index: 3000; }
-.toast {
-  background: rgba(0,0,0,0.8); color: white; padding: 0.8rem 1.5rem;
-  border-radius: 40px; font-size: 0.9rem; margin-top: 0.5rem;
-}
+/* 通用组件 */
+button { border: none; padding: 8px 16px; border-radius: 20px; cursor: pointer; font-weight: 600; }
+.btn-primary { background: var(--accent-green); color: white; }
+.btn-outline { background: white; border: 1px solid #ddd; color: #666; }
+.modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 3000; align-items: center; justify-content: center; }
+.modal-content { background: white; padding: 30px; border-radius: 20px; width: 450px; }
+#toast-root { position: fixed; bottom: 20px; right: 20px; z-index: 4000; }
+.toast { background: #333; color: white; padding: 10px 20px; border-radius: 30px; margin-top: 10px; }

@@ -1,7 +1,3 @@
-/* BirdNetCafe · 翎英 (AvianLinked)
-   DOM 稳定版：加入右侧鸟类列表、双向高亮、音频增强匹配
-*/
-
 let trees = [];
 let currentTreeId = null;
 let map = null; 
@@ -10,7 +6,9 @@ let modalMarker = null;
 let audioEnabled = false;
 let currentPlayingAudio = null;
 
-// 预置物种数据 (包含大窝坪道默认配置)
+// 默认大窝坪道背景图
+const DEFAULT_TREE_BG = "https://images.unsplash.com/photo-1596541604085-f53835f8e5d0?q=80&w=1200&auto=format&fit=crop";
+
 const PRESET_SPECIES = [
   { id: "1", common: "黑领椋鸟", scientific: "Gracupica nigricollis", confidence: 0.94, audioFile: "audio/黑领椋鸟.mp3", img: "images/黑领椋鸟.png", size: 45 },
   { id: "2", common: "暗绿绣眼鸟", scientific: "Zosterops simplex", confidence: 0.85, audioFile: "audio/暗绿绣眼鸟.mp3", img: "images/暗绿绣眼鸟.png", size: 30 },
@@ -25,29 +23,34 @@ window.onload = () => {
   if (trees.length === 0) createPresetTree();
   renderTreeList();
   
+  // 重置按钮逻辑
+  document.getElementById('resetBtn').onclick = () => {
+    if(confirm("确定要清空所有数据并重置为大窝坪道默认配置吗？")) {
+      localStorage.removeItem('birdnet_trees');
+      location.reload();
+    }
+  };
+
   document.getElementById('enableAudioBtn').onclick = () => {
     audioEnabled = true;
-    showToast("🎵 音频已启用，点击鸟类可播放鸣声");
+    showToast("🎵 声音已开启");
     document.getElementById('enableAudioBtn').style.display = 'none';
   };
   
   document.getElementById('createTreeBtn').onclick = openCreateModal;
   document.getElementById('confirmCreateTree').onclick = handleCreateTree;
 
-  // 点击空白处关闭浮窗
-  document.getElementById('tree-container').addEventListener('click', (e) => {
+  document.getElementById('tree-container').onclick = (e) => {
     if (e.target.id === 'tree-container') {
       closePopup();
       clearHighlights();
     }
-  });
+  };
 };
 
 function initMainMap() { 
-  if(!document.getElementById('map')) return;
-  // 默认中心：大窝坪道
   map = L.map('map').setView([22.3407, 114.1668], 15);
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { attribution: '&copy; OSM' }).addTo(map);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').addTo(map);
 }
 
 function loadTrees() {
@@ -60,32 +63,22 @@ function loadTrees() {
   });
 }
 
-function saveTreesToLocalStorage() {
-  localStorage.setItem('birdnet_trees', JSON.stringify(trees));
-}
-
 function createPresetTree() {
   const tree = { 
     id: 'preset_tree', 
     name: '大窝坪道 · 榕树', 
     lat: 22.3407, 
     lng: 114.1668, 
+    background: DEFAULT_TREE_BG,
     birds: [], 
     audioMap: {} 
   };
-  
-  // 随机分布位置 (百分比)
   PRESET_SPECIES.forEach(sp => {
-    let x = 20 + Math.random() * 60; // 20% - 80% 宽度
-    let y = 10 + Math.random() * 70; // 10% - 80% 高度
-    tree.birds.push({
-      ...sp, x: x, y: y
-    });
+    tree.birds.push({ ...sp, x: 20 + Math.random()*60, y: 15 + Math.random()*65 });
     if (sp.audioFile) tree.audioMap[sp.common] = sp.audioFile;
   });
-  
   trees = [tree];
-  saveTreesToLocalStorage();
+  localStorage.setItem('birdnet_trees', JSON.stringify(trees));
   L.marker([tree.lat, tree.lng]).addTo(map).bindPopup(tree.name);
 }
 
@@ -104,131 +97,98 @@ function renderTreeList() {
 
 function switchTree(id) {
   currentTreeId = id;
+  let tree = trees.find(t => t.id === id);
+  if (!tree) return;
+
+  // 关键修复：动态设置背景图
+  const container = document.getElementById('tree-container');
+  container.style.backgroundImage = `url('${tree.background || DEFAULT_TREE_BG}')`;
+
   renderTreeList();
   renderBirdsDOM();
   renderSpeciesList();
   closePopup();
-  
-  let tree = trees.find(t => t.id === id);
-  if (tree) map.setView([tree.lat, tree.lng], 16);
+  map.setView([tree.lat, tree.lng], 16);
 }
 
-// ============== 核心：渲染树上的鸟 (DOM) ==============
 function renderBirdsDOM() {
   const container = document.getElementById('tree-container');
-  if (!container) return;
   container.innerHTML = '';
-  
   let tree = trees.find(t => t.id === currentTreeId);
-  if (!tree) return;
-
   tree.birds.forEach(bird => {
     let img = document.createElement('img');
-    img.src = bird.img || 'images/default.png';
+    img.src = bird.img;
     img.className = 'bird-element';
     img.id = 'bird-dom-' + bird.id;
     img.style.left = bird.x + '%';
     img.style.top = bird.y + '%';
     img.style.width = bird.size + 'px';
-    
-    img.onclick = (e) => {
-      e.stopPropagation();
-      triggerBirdInteraction(bird, e.clientX, e.clientY);
-    };
+    img.onclick = (e) => { e.stopPropagation(); triggerBirdInteraction(bird, e.clientX, e.clientY); };
     container.appendChild(img);
   });
 }
 
-// ============== 新增：渲染右侧鸟类列表 ==============
 function renderSpeciesList() {
   const list = document.getElementById('species-list');
-  if (!list) return;
   list.innerHTML = '';
-  
   let tree = trees.find(t => t.id === currentTreeId);
-  if (!tree) return;
-
   tree.birds.forEach(bird => {
     let li = document.createElement('li');
     li.id = 'bird-li-' + bird.id;
-    li.innerHTML = `
-      <span>${bird.common}</span>
-      <span style="color:#888; font-size:0.8rem">${(bird.confidence * 100).toFixed(0)}%</span>
-    `;
-    li.onclick = (e) => {
-      // 找到对应的树上DOM位置来显示弹窗
-      let domEl = document.getElementById('bird-dom-' + bird.id);
-      if(domEl) {
-        let rect = domEl.getBoundingClientRect();
-        triggerBirdInteraction(bird, rect.left + rect.width/2, rect.top);
-      }
+    li.innerHTML = `<span>${bird.common}</span> <small>${(bird.confidence*100).toFixed(0)}%</small>`;
+    li.onclick = () => {
+      let dom = document.getElementById('bird-dom-' + bird.id);
+      let r = dom.getBoundingClientRect();
+      triggerBirdInteraction(bird, r.left + r.width/2, r.top);
     };
     list.appendChild(li);
   });
 }
 
-// ============== 双向高亮与交互逻辑 ==============
 function triggerBirdInteraction(bird, x, y) {
   clearHighlights();
-  
-  // 1. 高亮树上的鸟
-  let domEl = document.getElementById('bird-dom-' + bird.id);
-  if (domEl) domEl.classList.add('highlighted');
-  
-  // 2. 高亮右侧列表
-  let liEl = document.getElementById('bird-li-' + bird.id);
-  if (liEl) {
-    liEl.classList.add('active');
-    liEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  }
+  document.getElementById('bird-dom-' + bird.id).classList.add('highlighted');
+  let li = document.getElementById('bird-li-' + bird.id);
+  li.classList.add('active');
+  li.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 
-  // 3. 播放音频
   let tree = trees.find(t => t.id === currentTreeId);
   let audioSrc = tree.audioMap[bird.common];
   if (audioEnabled && audioSrc) {
-    if (currentPlayingAudio) { currentPlayingAudio.pause(); currentPlayingAudio.currentTime = 0; }
+    if (currentPlayingAudio) currentPlayingAudio.pause();
     currentPlayingAudio = new Audio(audioSrc);
-    currentPlayingAudio.play().catch(e => console.log('Audio play blocked:', e));
+    currentPlayingAudio.play();
   }
-
-  // 4. 显示浮窗
   showBirdPopup(bird, x, y);
+}
+
+// 恢复并丰富了上一个版本的浮窗
+function showBirdPopup(bird, x, y) {
+  const root = document.getElementById('popup-root');
+  const confPercent = (bird.confidence * 100).toFixed(1);
+  root.innerHTML = `
+    <div class="leaf-popup" style="left: ${x}px; top: ${y - 10}px;">
+      <h4>${bird.common}</h4>
+      <span class="sci">${bird.scientific}</span>
+      <div style="font-size: 0.8rem;">识别置信度: ${confPercent}%</div>
+      <div class="conf-bar"><div class="conf-fill" style="width: ${confPercent}%"></div></div>
+      <a class="ebird-btn" href="https://ebird.org/species/${bird.scientific.replace(' ', '-')}" target="_blank">🔍 在 eBird 上查看</a>
+    </div>
+  `;
 }
 
 function clearHighlights() {
   document.querySelectorAll('.bird-element').forEach(el => el.classList.remove('highlighted'));
   document.querySelectorAll('.species-list li').forEach(el => el.classList.remove('active'));
 }
-
-// ============== UI 与弹窗逻辑 ==============
-function showBirdPopup(bird, x, y) {
-  const root = document.getElementById('popup-root');
-  root.innerHTML = `
-    <div class="leaf-popup" style="left: ${x}px; top: ${y - 20}px;">
-      <h4>${bird.common}</h4>
-      <div class="sci-name">${bird.scientific}</div>
-      <div style="margin-bottom: 8px;">置信度: ${(bird.confidence * 100).toFixed(1)}%</div>
-      <button onclick="window.open('https://ebird.org/species/${bird.scientific.replace(' ', '-')}', '_blank')">
-        在 eBird 查看详情
-      </button>
-    </div>
-  `;
-}
-
-function closePopup() {
-  document.getElementById('popup-root').innerHTML = '';
-}
-
-function showToast(msg) {
-  const root = document.getElementById('toast-root');
+function closePopup() { document.getElementById('popup-root').innerHTML = ''; }
+function showToast(m) {
+  const r = document.getElementById('toast-root');
   const t = document.createElement('div');
-  t.className = 'toast';
-  t.innerText = msg;
-  root.appendChild(t);
-  setTimeout(() => t.remove(), 3000);
+  t.className = 'toast'; t.innerText = m; r.appendChild(t);
+  setTimeout(() => t.remove(), 2500);
 }
 
-// ============== 创建新树逻辑 ==============
 function openCreateModal() {
   document.getElementById('createTreeModal').style.display = 'flex';
   setTimeout(() => {
@@ -241,44 +201,23 @@ function openCreateModal() {
         document.getElementById('newTreeCoords').value = `${e.latlng.lat.toFixed(5)}, ${e.latlng.lng.toFixed(5)}`;
       });
     }
-    modalMap.invalidateSize(); 
   }, 100);
 }
 
 async function handleCreateTree() {
-  let name = document.getElementById('newTreeName').value || '未命名榕树';
+  let name = document.getElementById('newTreeName').value || '新榕树';
   let coords = document.getElementById('newTreeCoords').value.split(',');
-  if (coords.length !== 2) return alert('请在地图上选择位置！');
-  
-  let lat = parseFloat(coords[0]);
-  let lng = parseFloat(coords[1]);
-  let audioFiles = document.getElementById('newTreeAudio').files;
-  
-  // 简化的新建树逻辑 (复用预置鸟作为Demo，并尝试匹配本地音频)
+  if (coords.length < 2) return alert("请在地图上选择位置");
   let newTree = {
-    id: 'tree_' + Date.now(), name: name, lat: lat, lng: lng, birds: [], audioMap: {}
+    id: 'tree_' + Date.now(), name: name, lat: parseFloat(coords[0]), lng: parseFloat(coords[1]),
+    background: DEFAULT_TREE_BG, birds: [], audioMap: {}
   };
-  
   PRESET_SPECIES.forEach((sp, i) => {
-    newTree.birds.push({ ...sp, id: Date.now() + i, x: 20 + Math.random()*60, y: 10 + Math.random()*70 });
+    newTree.birds.push({ ...sp, id: Date.now()+i, x: 20 + Math.random()*60, y: 15 + Math.random()*65 });
   });
-
-  // 音频智能匹配逻辑：匹配中文或学名
-  Array.from(audioFiles).forEach(file => {
-    let url = URL.createObjectURL(file);
-    let fileName = file.name.toLowerCase();
-    newTree.birds.forEach(bird => {
-      if (fileName.includes(bird.common.toLowerCase()) || fileName.includes(bird.scientific.toLowerCase())) {
-        newTree.audioMap[bird.common] = url;
-      }
-    });
-  });
-
   trees.push(newTree);
-  saveTreesToLocalStorage();
-  
-  L.marker([lat, lng]).addTo(map).bindPopup(name);
+  localStorage.setItem('birdnet_trees', JSON.stringify(trees));
+  L.marker([newTree.lat, newTree.lng]).addTo(map).bindPopup(name);
   document.getElementById('createTreeModal').style.display = 'none';
   switchTree(newTree.id);
-  showToast('新树创建成功！');
 }
