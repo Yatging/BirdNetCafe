@@ -5,7 +5,7 @@
 
 import * as L from 'leaflet';
 import { maplibreGL } from 'https://unpkg.com/@maplibre/maplibre-gl-leaflet@0.1.4/dist/leaflet-maplibre-gl.mjs';
-import { getSpeciesMedia } from './media-service.js';
+import { getSpeciesMedia } from './media-service.js?v=20261105-2';
 
 let trees = [];
 let currentTreeId = null;
