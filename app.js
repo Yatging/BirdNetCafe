@@ -5,6 +5,7 @@
 
 import * as L from 'leaflet';
 import { maplibreGL } from 'https://unpkg.com/@maplibre/maplibre-gl-leaflet@0.1.4/dist/leaflet-maplibre-gl.mjs';
+import { getSpeciesMedia } from './media-service.js';
 
 let trees = [];
 let currentTreeId = null;
@@ -15,6 +16,7 @@ let currentPopup = null;
 let map = null; 
 let modalMap = null; 
 let modalMarker = null;
+const mediaEnrichmentTasks = new Map();
 
 const BASEMAP_STYLE_URL = 'https://tiles.openfreemap.org/styles/positron';
 const BASEMAP_ATTRIBUTION = '<a href="https://openfreemap.org">OpenFreeMap</a> &copy; <a href="https://openmaptiles.org">OpenMapTiles</a> Data from <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
@@ -35,9 +37,34 @@ const PRESET_SPECIES = [
 ];
 
 const DEFAULT_BIRD_IMG = "images/黑领椋鸟.png";
+const MAX_MEDIA_LOOKUPS_PER_TREE = 20;
 
 function random(min, max) { return Math.random() * (max - min) + min; }
 const PI = Math.PI;
+
+function normalizeFieldName(value) {
+  return String(value || '').trim().toLowerCase().replace(/[\s_\-()]/g, '');
+}
+
+function readRecordField(record, aliases) {
+  const normalizedAliases = aliases.map(normalizeFieldName);
+  for (const [key, value] of Object.entries(record || {})) {
+    if (normalizedAliases.includes(normalizeFieldName(key)) && String(value || '').trim()) {
+      return String(value).trim();
+    }
+  }
+  return '';
+}
+
+function getRecordIdentity(record) {
+  const scientific = readRecordField(record, [
+    'Scientific name', 'scientific_name', 'scientific', 'species_scientific', 'Latin name'
+  ]);
+  const common = readRecordField(record, [
+    'Common name', 'common_name', 'species_common', 'Species', 'species', 'common'
+  ]);
+  return { common: common || scientific || 'Unknown', scientific };
+}
 
 function calculateBirdSize(realSizeCm) {
   if (!realSizeCm) return random(50, 70);
@@ -403,6 +430,7 @@ function setCurrentTree(id) {
   updateTreeListUI();
   renderBirdsDOM();
   renderBirdSpeciesList();
+  void enrichTreeMedia(tree, false);
 }
 
 function bindUI() {
@@ -500,21 +528,36 @@ function createPresetTree() {
 function updateCurrentTreeBirds() {
   let treeObj = getCurrentTree();
   if (!treeObj) return;
-  let speciesList = Object.keys(treeObj.speciesSummary || {});
-  if (speciesList.length === 0) speciesList = PRESET_SPECIES.map(s => s.common);
+  let speciesList = Object.entries(treeObj.speciesSummary || {}).map(([key, info]) => ({
+    common: info.common || key,
+    scientific: info.scientific || '',
+    count: info.count || 0,
+    sumConf: info.sumConf || 0,
+  }));
+  if (speciesList.length === 0) {
+    speciesList = PRESET_SPECIES.map(species => ({
+      common: species.common,
+      scientific: species.scientific,
+      count: 1,
+      sumConf: species.confidence,
+    }));
+  }
   
   let newBirds = [];
   for (let i = 0; i < speciesList.length; i++) {
-    let spName = speciesList[i];
-    let info = treeObj.speciesSummary[spName];
-    let avgConf = info ? info.sumConf / info.count : 0.5;
-    let preset = PRESET_SPECIES.find(s => s.common === spName);
+    let info = speciesList[i];
+    let spName = info.common || info.scientific;
+    let avgConf = info.count ? info.sumConf / info.count : 0.5;
+    let preset = PRESET_SPECIES.find(species =>
+      species.common === spName || species.scientific === info.scientific
+    );
+    let scientific = info.scientific || preset?.scientific || '未知';
     
     let size = calculateBirdSize(preset ? preset.realSizeCm : null);
     let offset = generateNonOverlappingOffset(size, newBirds); 
     
     newBirds.push({
-      id: spName, species: spName, scientific: preset ? preset.scientific : '未知', confidence: avgConf,
+      id: scientific !== '未知' ? scientific : spName, species: spName, scientific: scientific, confidence: avgConf,
       imgPath: preset ? preset.img : DEFAULT_BIRD_IMG, audioPath: preset ? preset.audioFile : null,
       size: size, dx: offset.dx, dy: offset.dy
     });
@@ -525,11 +568,80 @@ function updateCurrentTreeBirds() {
   renderBirdsDOM();
 }
 
+function delay(milliseconds) {
+  return new Promise(resolve => setTimeout(resolve, milliseconds));
+}
+
+async function enrichTreeMedia(treeObj, announce = true) {
+  if (!treeObj?.birds?.length) return;
+  if (mediaEnrichmentTasks.has(treeObj.id)) return mediaEnrichmentTasks.get(treeObj.id);
+
+  const candidates = treeObj.birds.filter(bird =>
+    bird.scientific &&
+    bird.scientific !== '未知' &&
+    (bird.imgPath === DEFAULT_BIRD_IMG || !bird.audioPath)
+  ).slice(0, MAX_MEDIA_LOOKUPS_PER_TREE);
+  if (!candidates.length) return;
+
+  const task = (async () => {
+    let imageCount = 0;
+    let audioCount = 0;
+
+    for (let index = 0; index < candidates.length; index += 2) {
+      const batch = candidates.slice(index, index + 2);
+      await Promise.all(batch.map(async bird => {
+        try {
+          const media = await getSpeciesMedia({
+            scientificName: bird.scientific,
+            commonName: bird.species,
+            latitude: treeObj.lat,
+            longitude: treeObj.lng,
+          });
+          if (media.scientificName && bird.scientific === '未知') {
+            bird.scientific = media.scientificName;
+          }
+          if (media.image && bird.imgPath === DEFAULT_BIRD_IMG) {
+            bird.imgPath = media.image.url;
+            bird.imageCredit = media.image.credit;
+            imageCount++;
+          }
+          if (media.audio && !bird.audioPath) {
+            bird.audioPath = media.audio.url;
+            bird.audioCredit = media.audio.credit;
+            treeObj.audioMap.set(bird.species, media.audio.url);
+            audioCount++;
+          }
+        } catch (error) {
+          console.warn(`Media lookup failed for ${bird.scientific}`, error);
+        }
+      }));
+      if (index + 2 < candidates.length) await delay(500);
+    }
+
+    treeObj.mediaLookupCompletedAt = Date.now();
+    saveTreesToLocalStorage();
+    if (treeObj.id === currentTreeId) {
+      birds = treeObj.birds;
+      renderBirdsDOM();
+    }
+    if (announce) {
+      const summary = [];
+      if (imageCount) summary.push(`${imageCount} 张图片`);
+      if (audioCount) summary.push(`${audioCount} 段鸟鸣`);
+      showToast(summary.length ? `🐦 已自动补齐 ${summary.join('、')}` : '未找到可合法重用的媒体，已保留现有内容');
+    }
+  })().finally(() => mediaEnrichmentTasks.delete(treeObj.id));
+
+  mediaEnrichmentTasks.set(treeObj.id, task);
+  return task;
+}
+
 function saveTreesToLocalStorage() {
   let serializable = trees.map(t => ({
     id: t.id, name: t.name, lat: t.lat, lng: t.lng, birds: t.birds, 
     audioMap: Array.from(t.audioMap.entries()), birdnetRecords: t.birdnetRecords,
-    treeImg: t.treeImg
+    speciesSummary: t.speciesSummary, treeImg: t.treeImg,
+    mediaLookupCompletedAt: t.mediaLookupCompletedAt
   }));
   localStorage.setItem('birdnetcafe_trees', JSON.stringify(serializable));
 }
@@ -583,6 +695,7 @@ function showPopup(bird) {
       <button class="stop-btn" style="padding:6px 12px; background:#e0e0e0; color:#333; border:none; border-radius:6px; cursor:pointer;">⏹️</button>
       <a href="${wikiUrl}" target="_blank" style="padding:6px 12px; background:#f0f0f0; color:#333; text-decoration:none; border-radius:6px; font-size:13px; text-align:center;">📖 百科</a>
     </div>
+    <div class="media-credits"></div>
   `;
   
   const container = document.getElementById('canvas-container');
@@ -593,6 +706,7 @@ function showPopup(bird) {
   popup.style.top = Math.max(10, top) + 'px';
   root.appendChild(popup);
   currentPopup = popup;
+  renderMediaCredits(popup.querySelector('.media-credits'), bird);
 
   let audioPath = getCurrentTree().audioMap.get(species);
   let playBtn = popup.querySelector('.play-btn');
@@ -607,6 +721,50 @@ function showPopup(bird) {
   
   popup.addEventListener('click', e => e.stopPropagation());
   popup.querySelector('.close-btn').onclick = closePopup;
+}
+
+function safeExternalUrl(value) {
+  try {
+    const url = new URL(value);
+    return ['https:', 'http:'].includes(url.protocol) ? url.href : null;
+  } catch {
+    return null;
+  }
+}
+
+function appendMediaCredit(container, label, credit) {
+  if (!credit) return;
+  const row = document.createElement('div');
+  row.className = 'media-credit-row';
+  const prefix = document.createElement('span');
+  prefix.textContent = `${label}：${credit.attribution || credit.provider || '未知作者'} `;
+  row.appendChild(prefix);
+
+  const sourceUrl = safeExternalUrl(credit.sourcePage);
+  if (sourceUrl) {
+    const source = document.createElement('a');
+    source.href = sourceUrl;
+    source.target = '_blank';
+    source.rel = 'noopener noreferrer';
+    source.textContent = credit.provider || '来源';
+    row.appendChild(source);
+  }
+
+  const license = document.createElement(credit.licenseUrl ? 'a' : 'span');
+  if (credit.licenseUrl) {
+    license.href = safeExternalUrl(credit.licenseUrl) || '#';
+    license.target = '_blank';
+    license.rel = 'noopener noreferrer';
+  }
+  license.textContent = ` · ${credit.licenseLabel || credit.licenseCode || ''}`;
+  row.appendChild(license);
+  container.appendChild(row);
+}
+
+function renderMediaCredits(container, bird) {
+  if (!container) return;
+  appendMediaCredit(container, '图片', bird.imageCredit);
+  appendMediaCredit(container, '声音', bird.audioCredit);
 }
 
 function closePopup() {
@@ -680,16 +838,20 @@ async function importCSVToCurrentTree(csvFile) {
   tree.birdnetRecords = records;
   let summary = {};
   for (let rec of records) {
-    let species = rec.species_common || rec.Species || rec.scientific || 'Unknown';
-    let conf = parseFloat(rec.confidence || rec.Confidence || 0);
-    if (!summary[species]) summary[species] = { count:0, sumConf:0 };
-    summary[species].count++;
-    summary[species].sumConf += (isNaN(conf) ? 0 : conf);
+    const identity = getRecordIdentity(rec);
+    const key = identity.scientific || identity.common;
+    let conf = parseFloat(readRecordField(rec, ['Confidence', 'confidence', 'score', 'probability']) || 0);
+    if (!summary[key]) {
+      summary[key] = { common: identity.common, scientific: identity.scientific, count: 0, sumConf: 0 };
+    }
+    summary[key].count++;
+    summary[key].sumConf += (isNaN(conf) ? 0 : conf);
   }
   tree.speciesSummary = summary;
   updateCurrentTreeBirds();
   saveTreesToLocalStorage();
   showToast(`已成功导入 ${records.length} 条记录`);
+  void enrichTreeMedia(tree, true);
 }
 
 function parseCSV(text) {
