@@ -4,9 +4,17 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>WingedIn · 翎英 | Linking Features and Future.</title>
-  <!-- Leaflet CSS & JS -->
+  <!-- Leaflet + MapLibre (OpenFreeMap basemap) -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@6.3.0/dist/maplibre-gl.css" />
+  <script type="importmap">
+    {
+      "imports": {
+        "leaflet": "https://unpkg.com/leaflet@1.9.4/dist/leaflet-src.esm.js",
+        "maplibre-gl": "https://unpkg.com/maplibre-gl@6.3.0/dist/maplibre-gl.mjs"
+      }
+    }
+  </script>
   <!-- p5.js -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/addons/p5.sound.min.js"></script>
@@ -92,6 +100,6 @@
   </div>
 </footer>
 
-<script src="app.js"></script>
+<script type="module" src="app.js"></script>
 </body>
 </html>

@@ -3,6 +3,9 @@
    新增：右侧鸟类列表悬浮高亮 + 浮窗联动
 */
 
+import * as L from 'leaflet';
+import { maplibreGL } from 'https://unpkg.com/@maplibre/maplibre-gl-leaflet@0.1.4/dist/leaflet-maplibre-gl.mjs';
+
 let trees = [];
 let currentTreeId = null;
 let birds = [];
@@ -12,6 +15,14 @@ let currentPopup = null;
 let map = null; 
 let modalMap = null; 
 let modalMarker = null;
+
+const BASEMAP_STYLE_URL = 'https://tiles.openfreemap.org/styles/positron';
+const BASEMAP_ATTRIBUTION = '<a href="https://openfreemap.org">OpenFreeMap</a> &copy; <a href="https://openmaptiles.org">OpenMapTiles</a> Data from <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
+
+function addBasemap(targetMap) {
+  targetMap.attributionControl.addAttribution(BASEMAP_ATTRIBUTION);
+  return maplibreGL({ style: BASEMAP_STYLE_URL }).addTo(targetMap);
+}
 
 const PRESET_SPECIES = [
   { common: "黑领椋鸟", scientific: "Gracupica nigricollis", confidence: 0.94, audioFile: "audio/黑领椋鸟.mp3", img: "images/黑领椋鸟.png", realSizeCm: 28 },
@@ -303,9 +314,7 @@ function injectTutorialUI() {
 function initMainMap() { 
   if(!document.getElementById('map')) return;
   map = L.map('map').setView([22.340380, 114.163472], 13);
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-    attribution: '&copy; OSM'
-  }).addTo(map);
+  addBasemap(map);
 }
 
 function injectModalMapUI() {
@@ -367,7 +376,7 @@ function openCreateModal() {
   setTimeout(() => {
     if (!modalMap) {
       modalMap = L.map('modal-map-container').setView([22.340380, 114.163472], 11);
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').addTo(modalMap);
+      addBasemap(modalMap);
       modalMap.on('click', (e) => {
         if(modalMarker) modalMap.removeLayer(modalMarker);
         modalMarker = L.marker(e.latlng).addTo(modalMap);
