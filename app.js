@@ -19,10 +19,8 @@ let modalMarker = null;
 const mediaEnrichmentTasks = new Map();
 
 const BASEMAP_STYLE_URL = 'https://tiles.openfreemap.org/styles/positron';
-const BASEMAP_ATTRIBUTION = '<a href="https://openfreemap.org">OpenFreeMap</a> &copy; <a href="https://openmaptiles.org">OpenMapTiles</a> Data from <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
 
 function addBasemap(targetMap) {
-  targetMap.attributionControl.addAttribution(BASEMAP_ATTRIBUTION);
   return maplibreGL({ style: BASEMAP_STYLE_URL }).addTo(targetMap);
 }
 

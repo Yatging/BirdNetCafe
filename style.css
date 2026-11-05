@@ -312,9 +312,12 @@ body {
   background: rgba(255, 250, 235, 0.98);
   border-radius: 32px;
   max-width: 500px;
+  max-height: calc(100vh - 32px);
   width: 90%;
   box-shadow: var(--shadow-lg);
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
   animation: fadeInUp 0.3s;
 }
 
@@ -335,6 +338,8 @@ body {
 .modal-body {
   padding: 1.5rem;
   line-height: 1.5;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .modal-body label {
